@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "name": "Fixture baseline",
+  "version": 1,
+  "preset": {
+    "schemaVersion": 1,
+    "name": "Fixture preset",
+    "scopes": ["Policy.Read.All"],
+    "endpoints": ["/policies/authorizationPolicy", "/identity/conditionalAccess/policies"],
+    "checks": [
+      {
+        "id": "ORG-001",
+        "title": "Users cannot register applications",
+        "request": "/policies/authorizationPolicy",
+        "select": "defaultUserRolePermissions.allowedToCreateApps",
+        "operator": "equals",
+        "severity": "medium",
+        "why": "Registering an application is an administrative decision."
+      },
+      {
+        "id": "CA-001",
+        "title": "At least one Conditional Access policy is enabled",
+        "request": "/identity/conditionalAccess/policies",
+        "select": "value[?state=='enabled'].displayName",
+        "operator": "countAtLeast",
+        "severity": "high"
+      }
+    ]
+  },
+  "expected": { "ORG-001": false, "CA-001": 1 }
+}
