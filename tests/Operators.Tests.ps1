@@ -27,6 +27,29 @@ InModuleScope M365BaselineCheck {
             (Compare-MbcValue -Actual 'Enabled' -Operator 'equals' -Expected 'enabled' -CaseSensitive).Verdict | Should -Be 'Fail'
         }
 
+        It 'compares objects with the same case rule as text' {
+            $actual = [ordered]@{ state = 'Enabled' }
+            $expected = [ordered]@{ state = 'enabled' }
+            (Compare-MbcValue -Actual $actual -Operator 'equals' -Expected $expected).Verdict | Should -Be 'Pass'
+            (Compare-MbcValue -Actual $actual -Operator 'equals' -Expected $expected -CaseSensitive).Verdict | Should -Be 'Fail'
+        }
+
+        It 'finds an object in a list case-insensitively by default' {
+            $actual = @(([ordered]@{ id = 1; name = 'Admin' }), ([ordered]@{ id = 2; name = 'User' }))
+            (Compare-MbcValue -Actual $actual -Operator 'contains' -Expected ([ordered]@{ id = 1; name = 'admin' })).Verdict | Should -Be 'Pass'
+        }
+
+        It 'ignores order when comparing sets of objects' {
+            $actual = @(([ordered]@{ id = 1; name = 'Admin' }), ([ordered]@{ id = 2; name = 'User' }))
+            $expected = @(([ordered]@{ id = 2; name = 'user' }), ([ordered]@{ id = 1; name = 'admin' }))
+            (Compare-MbcValue -Actual $actual -Operator 'setEquals' -Expected $expected).Verdict | Should -Be 'Pass'
+        }
+
+        It 'reports the type-mismatch cause for equals in each direction' {
+            (Compare-MbcValue -Actual 'x' -Operator 'equals' -Expected @('x')).Cause | Should -Be 'baseline expects a list'
+            (Compare-MbcValue -Actual @('x') -Operator 'equals' -Expected 'x').Cause | Should -Be 'baseline expects a single value'
+        }
+
         It 'treats exists and absent as questions about NotFound' {
             (Compare-MbcValue -Actual $script:MbcNotFound -Operator 'exists' -Expected $null).Verdict | Should -Be 'Fail'
             (Compare-MbcValue -Actual $null -Operator 'exists' -Expected $null).Verdict | Should -Be 'Pass'

@@ -11,7 +11,7 @@ function New-MbcComparison {
 }
 
 function Test-MbcMemberEqual {
-    # Scalars compare by value (honouring case); anything complex compares by canonical JSON.
+    # Structural equality, recursive, honouring the same case rule at every scalar it reaches.
     [CmdletBinding()]
     [OutputType([bool])]
     param([AllowNull()][object] $Left, [AllowNull()][object] $Right, [bool] $CaseSensitive)
@@ -19,7 +19,24 @@ function Test-MbcMemberEqual {
         return (Test-MbcScalarEqual -Left $Left -Right $Right -CaseSensitive $CaseSensitive)
     }
     if ((Test-MbcIsScalar $Left) -or (Test-MbcIsScalar $Right)) { return $false }
-    return ((ConvertTo-MbcCanonicalJson $Left) -ceq (ConvertTo-MbcCanonicalJson $Right))
+    if ((Test-MbcIsList $Left) -and (Test-MbcIsList $Right)) {
+        if ($Left.Count -ne $Right.Count) { return $false }
+        for ($i = 0; $i -lt $Left.Count; $i++) {
+            if (-not (Test-MbcMemberEqual -Left $Left[$i] -Right $Right[$i] -CaseSensitive $CaseSensitive)) { return $false }
+        }
+        return $true
+    }
+    if ((Test-MbcIsList $Left) -or (Test-MbcIsList $Right)) { return $false }
+    if ((Test-MbcIsDictionary $Left) -and (Test-MbcIsDictionary $Right)) {
+        if ($Left.Count -ne $Right.Count) { return $false }
+        # Keys are case-insensitive dictionaries already, so .Contains() needs no case handling here.
+        foreach ($key in $Left.Keys) {
+            if (-not $Right.Contains($key)) { return $false }
+            if (-not (Test-MbcMemberEqual -Left $Left[$key] -Right $Right[$key] -CaseSensitive $CaseSensitive)) { return $false }
+        }
+        return $true
+    }
+    return $false
 }
 
 function Test-MbcSubset {
