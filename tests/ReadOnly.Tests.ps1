@@ -28,6 +28,18 @@ Describe 'Read-only by construction (invariant 1)' {
         $text.IndexOf('Invoke-MgGraphRequest') | Should -BeLessThan $next
     }
 
+    It 'runs a cmdlet from a variable in exactly one place: the guarded runner' {
+        # A splatted call of a command held in a variable: '& $x @y'.
+        $calls = @($script:Lines | Where-Object {
+                $t = $_.Text
+                $amp = $t.IndexOf('& $')
+                $amp -ge 0 -and $t.IndexOf(' @', $amp) -gt $amp -and $t.IndexOf(' @(', $amp) -ne $t.IndexOf(' @', $amp)
+            })
+        $calls.Count | Should -Be 1
+        $calls[0].File | Should -Be 'Cmdlet.ps1'
+        $calls[0].Text | Should -BeLike '*& $Command @Parameters -ErrorAction Stop*'
+    }
+
     It 'never uses another HTTP client' {
         foreach ($c in 'Invoke-RestMethod', 'Invoke-WebRequest', 'HttpClient', 'WebClient', 'HttpWebRequest') {
             @($script:Lines | Where-Object { $_.Text.IndexOf($c, [StringComparison]::OrdinalIgnoreCase) -ge 0 }) | Should -BeNullOrEmpty -Because "$c must not appear"
