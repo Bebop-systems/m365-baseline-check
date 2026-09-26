@@ -11,10 +11,12 @@ function Protect-Baseline {
     [CmdletBinding(SupportsShouldProcess)]
     [OutputType([pscustomobject])]
     param([Parameter(Mandatory, Position = 0)][string] $Path)
+    # Messages show unless the caller chose otherwise.
+    if (-not $PSBoundParameters.ContainsKey('InformationAction')) { $InformationPreference = 'Continue' }
 
     $b = Read-MbcBaseline -Path $Path
     if ($b.SealState -eq 'Sealed') {
-        Write-Information ('Already sealed, and unchanged since: {0} · v{1} · {2}.' -f $b.Name, $b.Version, $b.Fingerprint) -InformationAction Continue
+        Write-Information ('Already sealed, and unchanged since: {0} · v{1} · {2}.' -f $b.Name, $b.Version, $b.Fingerprint)
         return (Get-MbcBaselineIdentity -Baseline $b)
     }
     if ($b.SealState -eq 'Modified' -and $b.Version -le $b.SealedVersion) {
@@ -27,8 +29,8 @@ function Protect-Baseline {
 
     if ($PSCmdlet.ShouldProcess($b.Path, "Seal $($b.Name) v$($b.Version)")) {
         Write-MbcFileAtomic -Path $b.Path -Text (ConvertTo-MbcPrettyJson -Value $sealed)
-        Write-Information ('Sealed. {0} is v{1}; its fingerprint is {2}. Record it wherever you keep these:' -f $b.Name, $b.Version, $b.Fingerprint) -InformationAction Continue
-        Write-Information ('  {0} · v{1} · SHA-256 {2}' -f $b.Name, $b.Version, $b.Digest) -InformationAction Continue
+        Write-Information ('Sealed. {0} is v{1}; its fingerprint is {2}. Record it wherever you keep these:' -f $b.Name, $b.Version, $b.Fingerprint)
+        Write-Information ('  {0} · v{1} · SHA-256 {2}' -f $b.Name, $b.Version, $b.Digest)
     }
     return (Get-MbcBaselineIdentity -Baseline (Read-MbcBaseline -Path $b.Path))
 }

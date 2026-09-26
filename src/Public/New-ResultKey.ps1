@@ -12,9 +12,11 @@ function New-ResultKey {
     [CmdletBinding()]
     [OutputType([string])]
     param()
+    # Messages show unless the caller chose otherwise.
+    if (-not $PSBoundParameters.ContainsKey('InformationAction')) { $InformationPreference = 'Continue' }
     $text = New-MbcTeamKeyText
     $id = $text.Split(':')[2]
-    Write-Information "Store this in one entry in your team's password manager, named 'M365 Baseline Check · results key $id'." -InformationAction Continue
-    Write-Information "It won't be shown again, and nothing has been saved to disk." -InformationAction Continue
+    Write-Information "Store this in one entry in your team's password manager, named 'M365 Baseline Check · results key $id'."
+    Write-Information "It won't be shown again, and nothing has been saved to disk."
     return $text
 }

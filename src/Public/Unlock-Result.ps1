@@ -15,6 +15,8 @@ function Unlock-Result {
         [securestring] $Key,
         [string] $OutputDirectory
     )
+    # Messages show unless the caller chose otherwise.
+    if (-not $PSBoundParameters.ContainsKey('InformationAction')) { $InformationPreference = 'Continue' }
     $envelope = Read-MbcLockedFile -Path $Path
     $keyText = if ($Key) { ConvertFrom-MbcSecureKey -Key $Key }
     elseif ($script:MbcSessionKey) { $script:MbcSessionKey }
@@ -27,7 +29,7 @@ function Unlock-Result {
         foreach ($name in $opened.Files.Keys) {
             Write-MbcFileAtomic -Path (Join-Path $OutputDirectory (Get-MbcBundleFileName -Part $name -Stamp $stamp)) -Text $opened.Files[$name]
         }
-        Write-Information "Unlocked into $OutputDirectory. Those files are plaintext; file them accordingly." -InformationAction Continue
+        Write-Information "Unlocked into $OutputDirectory. Those files are plaintext; file them accordingly."
     }
     return $opened
 }

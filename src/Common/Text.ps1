@@ -163,3 +163,21 @@ function Format-MbcRunTime {
     }
     return [string]$Iso
 }
+
+function Test-MbcUnicodeOutput {
+    # Whether plain output may use Unicode glyphs: a UTF-8 console, and M365BC_ASCII not set.
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param()
+    if ($env:M365BC_ASCII) { return $false }
+    try { return ([Console]::OutputEncoding.CodePage -eq 65001) } catch { return $false }
+}
+
+function Get-MbcPlainWidth {
+    [CmdletBinding()]
+    [OutputType([int])]
+    param()
+    $width = 100
+    try { if (-not [Console]::IsOutputRedirected -and [Console]::WindowWidth -gt 0) { $width = [Console]::WindowWidth - 1 } } catch { $width = 100 }
+    return [Math]::Max(60, [Math]::Min(120, $width))
+}
