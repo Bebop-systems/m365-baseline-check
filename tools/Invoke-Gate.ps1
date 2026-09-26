@@ -31,9 +31,18 @@ if (-not $SkipAnalyzer) {
     Import-Module PSScriptAnalyzer -Force
     $settings = Join-Path $root 'PSScriptAnalyzerSettings.psd1'
     # Two invocations on purpose: -Path takes one string, and a comma list analyses nothing, silently.
+    $analysed = 0
     foreach ($dir in 'src', 'tools') {
-        $findings += @(Invoke-ScriptAnalyzer -Path (Join-Path $root $dir) -Recurse -Settings $settings)
+        $dirPath = Join-Path $root $dir
+        if (-not (Test-Path -LiteralPath $dirPath)) {
+            Write-Output "Skipping analysis of '$dir': directory does not exist."
+            continue
+        }
+        $analysed++
+        $findings += @(Invoke-ScriptAnalyzer -Path $dirPath -Recurse -Settings $settings)
     }
+    # Fail closed: a clean result must come from analysing something, never from analysing nothing.
+    if ($analysed -eq 0) { throw 'Neither ./src nor ./tools exists, so there is nothing to analyse.' }
     # Canary: a clean result only means something if the analyser can find a problem at all.
     $canary = @(Invoke-ScriptAnalyzer -ScriptDefinition 'function Get-Canary { Write-Host "x" }' -Settings $settings)
     if ($canary.Count -eq 0) { throw 'The analyser found nothing in a deliberately bad script, so its clean result cannot be trusted.' }
