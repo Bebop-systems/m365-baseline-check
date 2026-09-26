@@ -114,11 +114,13 @@ function Get-MbcSessionModuleName {
 function Find-MbcExchangeSession {
     [CmdletBinding()]
     [OutputType([string])]
-    param([Parameter(Mandatory)][string] $Source, [AllowEmptyCollection()][object[]] $Connections = @())
+    param([Parameter(Mandatory)][string] $Source, [AllowEmptyCollection()][object[]] $Connections = @(), [string] $TenantId = '')
     $wantCompliance = $Source -eq 'compliance'
     $match = $null
     foreach ($c in $Connections) {
         if ([string]$c.State -ne 'Connected' -or [string]::IsNullOrEmpty([string]$c.ModuleName)) { continue }
+        # A session in another tenant would judge that tenant under this one's name.
+        if ($TenantId -and $c.PSObject.Properties['TenantID'] -and [string]$c.TenantID -and [string]$c.TenantID -ine $TenantId) { continue }
         $isCompliance = [bool]$c.IsEopSession -or ([string]$c.ConnectionUri).IndexOf('compliance', [StringComparison]::OrdinalIgnoreCase) -ge 0
         if ($isCompliance -eq $wantCompliance) { $match = $c }
     }
@@ -132,6 +134,26 @@ function Get-MbcDeclaredCmdlets {
     param([Parameter(Mandatory)][System.Collections.IDictionary] $Preset, [Parameter(Mandatory)][string] $Source)
     if (-not $Preset.Contains('cmdlets') -or -not (Test-MbcIsDictionary $Preset['cmdlets']) -or -not $Preset['cmdlets'].Contains($Source)) { return , @() }
     return , [string[]]@($Preset['cmdlets'][$Source] | Where-Object { Test-MbcCmdletName -Name ([string]$_) })
+}
+
+function Test-MbcConnectionCovers {
+    <#
+    .SYNOPSIS
+        Whether a sign-in can serve a preset: every scope it asks for was granted, and every cmdlet
+        source it uses was at least attempted. Otherwise the caller signs in again rather than report
+        checks as unverifiable that could have been checked.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([Parameter(Mandatory)] $Connection, [Parameter(Mandatory)][System.Collections.IDictionary] $Preset)
+    $granted = @($Connection.Scopes)
+    foreach ($s in (Get-MbcSignInScopes -Preset $Preset)) {
+        if (-not ($granted | Where-Object { $_ -ieq $s })) { return $false }
+    }
+    foreach ($source in (Get-MbcPresetSources -Preset $Preset)) {
+        if (-not $Connection.Sessions.Contains($source) -and -not $Connection.Failed.Contains($source)) { return $false }
+    }
+    return $true
 }
 
 function Format-MbcDisclosure {
@@ -207,8 +229,8 @@ function Connect-MbcSources {
             foreach ($s in $sources) {
                 try {
                     Invoke-MbcConnectExchange -Source $s -UserPrincipalName $account -CommandName (Get-MbcDeclaredCmdlets -Preset $Preset -Source $s)
-                    $module = Find-MbcExchangeSession -Source $s -Connections (Get-MbcExchangeConnections)
-                    if ($module) { $sessions[$s] = $module } else { $failed[$s] = 'connected, but no session module was found' }
+                    $module = Find-MbcExchangeSession -Source $s -Connections (Get-MbcExchangeConnections) -TenantId ([string]$context.TenantId)
+                    if ($module) { $sessions[$s] = $module } else { $failed[$s] = 'no session in the signed-in tenant; was another account chosen?' }
                 }
                 catch { $failed[$s] = $_.Exception.Message.Split([char]10)[0].Trim() }
             }

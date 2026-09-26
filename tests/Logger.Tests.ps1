@@ -31,11 +31,19 @@ InModuleScope M365BaselineCheck {
             $entry['actual']['truncated'] | Should -BeTrue
             $entry['actual']['length'] | Should -BeGreaterThan 5000
         }
-        It 'refuses to write anything shaped like a secret' {
+        It 'refuses a field of its own that is named like a secret' {
             { Write-MbcLog -Log $script:Log -EventName 'x' -Data @{ accessToken = 'abc' } } | Should -Throw '*never logged*'
-            { Write-MbcLog -Log $script:Log -EventName 'x' -Data @{ nested = @{ Authorization = 'Bearer' } } } | Should -Throw '*never logged*'
-            { Write-MbcLog -Log $script:Log -EventName 'x' -Data @{ list = @(@{ key = 'mbc-key:1' }) } } | Should -Throw '*never logged*'
             { Write-MbcLog -Log $script:Log -EventName 'x' -Data @{ keyId = '3f2a9c1e' } } | Should -Not -Throw
+        }
+        It 'withholds secret-looking values inside tenant data, without stopping the run' {
+            $actual = @([ordered]@{ displayName = 'Deploy'; secretText = 'abc123' }, [ordered]@{ key = 'AAAA'; value = 'x' })
+            { Write-MbcLog -Log $script:Log -EventName 'check' -Data @{ actual = $actual; parameters = @{ Authorization = 'Bearer y' } } } | Should -Not -Throw
+            $text = [System.IO.File]::ReadAllText($script:Log.Path)
+            $text | Should -Not -BeLike '*abc123*'
+            $text | Should -Not -BeLike '*AAAA*'
+            $text | Should -Not -BeLike '*Bearer*'
+            $text | Should -BeLike '*"displayName":"Deploy"*'
+            $text | Should -BeLike '*"secretText":"`[withheld`]"*'
         }
         It 'does nothing when there is no log' {
             { Write-MbcLog -Log $null -EventName 'x' } | Should -Not -Throw

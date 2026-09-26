@@ -29,6 +29,7 @@ function ConvertTo-MbcInventoryDocument {
             assignmentRequired = $a.AssignmentRequired
             delegated          = @($a.Delegated | ForEach-Object { [ordered]@{ type = $_.Type; resource = $_.Resource; scopes = @($_.Scopes); users = [long]$_.Users } })
             application        = @($a.Application | ForEach-Object { [ordered]@{ resource = $_.Resource; roles = @($_.Roles) } })
+            userConsentCount   = [long]$a.UserConsentCount
         }
     }
     return [ordered]@{
@@ -59,6 +60,7 @@ function ConvertFrom-MbcInventoryDocument {
             AssignmentRequired = $a['assignmentRequired']
             Delegated          = @($a['delegated'] | Where-Object { $_ } | ForEach-Object { [pscustomobject]@{ Type = [string]$_['type']; Resource = [string]$_['resource']; Scopes = [string[]]@($_['scopes']); Users = [int]$_['users'] } })
             Application        = @($a['application'] | Where-Object { $_ } | ForEach-Object { [pscustomobject]@{ Resource = [string]$_['resource']; Roles = [string[]]@($_['roles']) } })
+            UserConsentCount   = [int]$a['userConsentCount']
         }
     }
     return [pscustomobject]@{

@@ -116,6 +116,28 @@ InModuleScope M365BaselineCheck {
             $s.Quit | Should -BeTrue -Because 'a result opened from a file needs no export before quitting'
         }
 
+        It 'counts the requests it will make, so the bar moves in steps' {
+            Start-Session @('r', 'q', 'y', '<Enter>') | Out-Null
+            @($script:Frames | Where-Object { $_ -like '*1 of 3*' }).Count | Should -BeGreaterThan 0
+            @($script:Frames | Where-Object { $_ -like '* of 1*' }).Count | Should -Be 0
+        }
+
+        It 'asks for the right key when a held key belongs to another file' {
+            $keyA = New-MbcTeamKeyText
+            $keyB = New-MbcTeamKeyText
+            $first = Start-Session @('r', 'x', $keyB, '<Enter>', 'q')
+            $locked = @(Get-ChildItem (Join-Path $first.OutputRoot 'results') -Filter '*.locked')[0].FullName
+            $script:MbcSessionKey = $keyA
+            $script:MbcKeyQueue = [System.Collections.Generic.Queue[object]]::new()
+            foreach ($ch in $keyB.ToCharArray()) { $script:MbcKeyQueue.Enqueue((K ([string]$ch))) }
+            $script:MbcKeyQueue.Enqueue((K '<Enter>'))
+            $state = New-MbcTuiState -OutputRoot $first.OutputRoot
+            try { Open-MbcTuiLocked -State $state -Path $locked }
+            finally { $script:MbcKeyQueue = $null }
+            $state.ViewFromFile | Should -BeTrue
+            $script:MbcSessionKey | Should -Be $keyB
+        }
+
         It 'refuses a mistyped key at export and writes nothing' {
             $s = Start-Session @('r', 'x', 'mbc-key:1:nope', '<Enter>', 'q', 'y', '<Enter>')
             @(Get-ChildItem (Join-Path $s.OutputRoot 'results')).Count | Should -Be 0

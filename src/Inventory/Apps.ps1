@@ -141,6 +141,7 @@ function New-MbcInventoryApp {
 
     $delegatedList = [System.Collections.Generic.List[object]]::new()
     $appPermList = [System.Collections.Generic.List[object]]::new()
+    $consentingUsers = @{}
     if ($ServicePrincipal) {
         $spId = [string]$ServicePrincipal['id']
         $groups = [ordered]@{}
@@ -150,7 +151,7 @@ function New-MbcInventoryApp {
             $key = "$type|$($g['resourceId'])"
             if (-not $groups.Contains($key)) { $groups[$key] = @{ Type = $type; ResourceId = [string]$g['resourceId']; Scopes = [System.Collections.Generic.List[string]]::new(); Users = @{} } }
             foreach ($s in (Split-MbcScopeText -Text ([string]$g['scope']))) { $groups[$key].Scopes.Add($s) }
-            if ($type -eq 'user' -and $g['principalId']) { $groups[$key].Users[[string]$g['principalId']] = $true }
+            if ($type -eq 'user' -and $g['principalId']) { $groups[$key].Users[[string]$g['principalId']] = $true; $consentingUsers[[string]$g['principalId']] = $true }
         }
         foreach ($grp in $groups.Values) {
             $delegatedList.Add([pscustomobject]@{
@@ -190,6 +191,8 @@ function New-MbcInventoryApp {
         AssignmentRequired = if ($ServicePrincipal) { [bool]$ServicePrincipal['appRoleAssignmentRequired'] } else { $null }
         Delegated          = $delegatedList.ToArray()
         Application        = $appPermList.ToArray()
+        # Distinct people who consented for themselves, across every resource.
+        UserConsentCount   = $consentingUsers.Count
     }
 }
 
@@ -215,7 +218,10 @@ function ConvertTo-MbcAppInventory {
         if ($null -eq $app) { continue }
         $sp = if ($ownSps.ContainsKey([string]$app['appId'])) { $ownSps[[string]$app['appId']] } else { $null }
         $own.Add((New-MbcInventoryApp -Kind 'own' -ServicePrincipal $sp -Application $app -Data $Data))
+        if ($sp) { $ownSps.Remove([string]$app['appId']) }
     }
+    # An own service principal whose registration is gone (or unread) still holds its consents: list it.
+    foreach ($sp in $ownSps.Values) { $own.Add((New-MbcInventoryApp -Kind 'own' -ServicePrincipal $sp -Application $null -Data $Data)) }
     return [pscustomobject]@{
         PSTypeName      = 'Mbc.Inventory'
         Collected       = $true

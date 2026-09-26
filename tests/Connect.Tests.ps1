@@ -101,6 +101,29 @@ InModuleScope M365BaselineCheck {
             { Connect-MbcSources -Preset $script:Preset -Transport $script:Transport } | Should -Throw '*Install-Module Microsoft.Graph.Authentication*'
         }
 
+        It 'refuses an Exchange session in another tenant than the Graph sign-in' {
+            Mock Get-MbcExchangeConnections {
+                @([pscustomobject]@{ State = 'Connected'; IsEopSession = $false; ConnectionUri = 'https://outlook.office365.com'; ModuleName = 'tmpEXO_other'; TenantID = '00000000-0000-4000-8000-0000000000ff' })
+            }
+            $c = Connect-MbcSources -Preset $script:Preset -Transport $script:Transport
+            $c.Sessions.Contains('exo') | Should -BeFalse
+            $c.Failed['exo'] | Should -BeLike '*another account*'
+        }
+
+        It 'says whether a sign-in covers a preset''s scopes and sources' {
+            $c = Connect-MbcSources -Preset $script:Preset -Transport $script:Transport
+            $c.Scopes = @('Policy.Read.All', 'Application.Read.All', 'Directory.Read.All', 'User.Read')
+            Test-MbcConnectionCovers -Connection $c -Preset $script:Preset | Should -BeTrue
+            $more = ConvertFrom-MbcJson -Json (ConvertTo-MbcCanonicalJson $script:Preset)
+            $more['scopes'] = @('Policy.Read.All', 'AuditLog.Read.All')
+            Test-MbcConnectionCovers -Connection $c -Preset $more | Should -BeFalse
+            $compliance = ConvertFrom-MbcJson -Json (ConvertTo-MbcCanonicalJson $script:Preset)
+            $compliance['cmdlets'] = [ordered]@{ compliance = @('Get-DlpCompliancePolicy') }
+            $compliance['checks'][2]['source'] = 'compliance'
+            $compliance['checks'][2]['request'] = 'Get-DlpCompliancePolicy'
+            Test-MbcConnectionCovers -Connection $c -Preset $compliance | Should -BeFalse
+        }
+
         It 'picks the compliance session, not the Exchange one, for the compliance source' {
             $p = ConvertFrom-MbcJson -Json (ConvertTo-MbcCanonicalJson $script:Preset)
             $p['cmdlets'] = [ordered]@{ compliance = @('Get-DlpCompliancePolicy') }

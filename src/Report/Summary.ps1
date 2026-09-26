@@ -19,7 +19,7 @@ function Get-MbcSummarySource {
                 Verified    = [bool]$a.Verified
                 Admin       = [string[]]@($a.Delegated | Where-Object Type -eq 'admin' | ForEach-Object { $_.Scopes })
                 User        = [string[]]@($a.Delegated | Where-Object Type -eq 'user' | ForEach-Object { $_.Scopes })
-                Users       = [int](@($a.Delegated | Where-Object Type -eq 'user' | ForEach-Object { [int]$_.Users } | Measure-Object -Maximum).Maximum)
+                Users       = [int]$a.UserConsentCount
                 Application = [string[]]@($a.Application | ForEach-Object { $_.Roles })
             }
         })

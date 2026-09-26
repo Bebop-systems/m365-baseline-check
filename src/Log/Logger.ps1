@@ -1,23 +1,40 @@
-# The run log: JSON lines, one file per run, verbose on purpose. Secrets are refused by key name before
-# anything is written (invariant 6).
+# The run log: JSON lines, one file per run, verbose on purpose. Secrets never reach it (invariant 6): a
+# field of our own with a secret-looking name is refused outright, and inside tenant data (actual and
+# expected values, parameters) a secret-looking key has its value replaced before anything is written.
 $script:MbcSecretKeyFragments = @('token', 'authorization', 'secret', 'password', 'passphrase', 'credential', 'teamkey', 'cookie')
 $script:MbcLogValueLimit = 2048
 
-function Assert-MbcLogSafe {
+function Test-MbcSecretName {
     [CmdletBinding()]
-    param([AllowNull()][object] $Data)
-    if (Test-MbcIsDictionary $Data) {
-        foreach ($k in $Data.Keys) {
-            $name = [string]$k
-            if ($name -ieq 'key' -or (Test-MbcContainsAny -Text $name -Fragments $script:MbcSecretKeyFragments)) {
-                throw "A value named '$name' looks like a secret, and secrets are never logged."
-            }
-            Assert-MbcLogSafe -Data $Data[$k]
+    [OutputType([bool])]
+    param([AllowEmptyString()][string] $Name)
+    return ($Name -ieq 'key' -or (Test-MbcContainsAny -Text $Name -Fragments $script:MbcSecretKeyFragments))
+}
+
+function Assert-MbcLogSafe {
+    # Our own field names: a secret-looking one is a bug in this tool, so it stops the write.
+    [CmdletBinding()]
+    param([AllowNull()][System.Collections.IDictionary] $Data)
+    if ($null -eq $Data) { return }
+    foreach ($k in $Data.Keys) {
+        if (Test-MbcSecretName -Name ([string]$k)) { throw "A value named '$k' looks like a secret, and secrets are never logged." }
+    }
+}
+
+function Protect-MbcLogValue {
+    # A copy of tenant data with the value under any secret-looking key replaced. Never throws.
+    [CmdletBinding()]
+    [OutputType([object])]
+    param([AllowNull()][object] $Value)
+    if (Test-MbcIsDictionary $Value) {
+        $copy = [ordered]@{}
+        foreach ($k in $Value.Keys) {
+            $copy[[string]$k] = if (Test-MbcSecretName -Name ([string]$k)) { '[withheld]' } else { Protect-MbcLogValue -Value $Value[$k] }
         }
+        return $copy
     }
-    elseif (Test-MbcIsList $Data) {
-        foreach ($item in $Data) { Assert-MbcLogSafe -Data $item }
-    }
+    if (Test-MbcIsList $Value) { return , @($Value | ForEach-Object { Protect-MbcLogValue -Value $_ }) }
+    return $Value
 }
 
 function Limit-MbcLogValue {
@@ -62,7 +79,7 @@ function Write-MbcLog {
         seq         = $Log.State.Seq
         event       = $EventName
     }
-    foreach ($k in $Data.Keys) { $entry[[string]$k] = Limit-MbcLogValue -Value $Data[$k] }
+    foreach ($k in $Data.Keys) { $entry[[string]$k] = Limit-MbcLogValue -Value (Protect-MbcLogValue -Value $Data[$k]) }
     $line = ConvertTo-MbcCanonicalJson -Value $entry
     [System.IO.File]::AppendAllText($Log.Path, $line + "`n", [System.Text.UTF8Encoding]::new($false))
     Write-Verbose $line

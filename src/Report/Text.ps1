@@ -332,9 +332,10 @@ function Get-MbcConsentSummary {
     param([Parameter(Mandatory)] $App, [Parameter(Mandatory)][hashtable] $Glyphs)
     $admin = 0; $user = 0; $people = 0; $appPerms = 0
     foreach ($d in @($App.Delegated)) {
-        if ($d.Type -eq 'admin') { $admin += @($d.Scopes).Count } else { $user += @($d.Scopes).Count; $people = [Math]::Max($people, [int]$d.Users) }
+        if ($d.Type -eq 'admin') { $admin += @($d.Scopes).Count } else { $user += @($d.Scopes).Count }
     }
     foreach ($a in @($App.Application)) { $appPerms += @($a.Roles).Count }
+    $people = [int]$App.UserConsentCount
     $parts = [System.Collections.Generic.List[string]]::new()
     if ($admin) { $parts.Add("$admin admin") }
     if ($user) { $parts.Add("$user user ($people $(if ($people -eq 1) { 'person' } else { 'people' }))") }

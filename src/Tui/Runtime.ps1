@@ -213,6 +213,9 @@ function Invoke-MbcTuiRun {
     try { Assert-MbcBaselineUsable -Baseline $State.Baseline -AllowUnsealed:$State.AllowUnsealed -ExpectedFingerprint $State.ExpectedFingerprint }
     catch { Set-MbcTuiMessage -State $State -Text $_.Exception.Message -Style 'bad'; return }
     if (-not $State.Connection) { Invoke-MbcTuiSignIn -State $State }
+    elseif (-not $State.Seams.Connection -and -not (Test-MbcConnectionCovers -Connection $State.Connection -Preset $State.Baseline.Document['preset'])) {
+        Invoke-MbcTuiSignIn -State $State -Switch
+    }
     if (-not $State.Connection) { return }
 
     $b = $State.Baseline
@@ -223,7 +226,7 @@ function Invoke-MbcTuiRun {
     Write-MbcLog -Log $log -EventName 'run.start' -Data ([ordered]@{ tool = $script:MbcToolVersion; mode = 'tui'; baselineName = $b.Name; baselineVersion = $b.Version; sealState = $b.SealState })
     if ($connection.PSObject.Properties['Disclosure']) { Write-MbcLog -Log $log -EventName 'disclosure' -Data @{ lines = @($connection.Disclosure) } }
 
-    $live = @{ Done = 0; Total = @(Get-MbcRequestPlan -Preset $preset).Count; Label = 'Starting'; Phase = 'checks'; Waiting = 0; Lines = [System.Collections.Generic.List[object]]::new() }
+    $live = @{ Done = 0; Total = (Get-MbcRequestPlan -Preset $preset).Count; Label = 'Starting'; Phase = 'checks'; Waiting = 0; Lines = [System.Collections.Generic.List[object]]::new() }
     $State.Live = $live
     $State.Screen = 'run'
     Set-MbcTuiMessage -State $State -Text ''
@@ -320,10 +323,12 @@ function Show-MbcTuiChooser {
 function Open-MbcTuiLocked {
     [CmdletBinding()]
     param([Parameter(Mandatory)][hashtable] $State, [Parameter(Mandatory)][string] $Path)
+    try { $keyId = (Read-MbcLockedFile -Path $Path)['keyId'] }
+    catch { $State.Screen = 'home'; Set-MbcTuiMessage -State $State -Text $_.Exception.Message -Style 'bad'; return }
     $keyText = $script:MbcSessionKey
+    # A key held from earlier is used only for files locked with it; any other file asks for its own.
+    if ($keyText -and $keyText.Trim().Split(':')[2] -cne $keyId) { $keyText = $null }
     if (-not $keyText) {
-        try { $keyId = (Read-MbcLockedFile -Path $Path)['keyId'] }
-        catch { $State.Screen = 'home'; Set-MbcTuiMessage -State $State -Text $_.Exception.Message -Style 'bad'; return }
         $keyText = Read-MbcLine -State $State -Title 'Open a locked result' -Label "Team key $keyId. It stays in memory for this session only." -Mask
         if (-not $keyText) { $State.Screen = 'home'; return }
     }

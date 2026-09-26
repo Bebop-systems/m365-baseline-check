@@ -95,6 +95,25 @@ InModuleScope M365BaselineCheck {
             $inv.ThirdParty.Count | Should -Be 0
         }
 
+        It 'lists an own service principal whose registration is gone' {
+            $noApps = {
+                param($Request)
+                if ($Request.StartsWith('/applications')) { return (New-MbcFetchResult -Ok $true -Body ([ordered]@{ value = @() }) -Status 200) }
+                & $script:Get $Request
+            }
+            $own = @((Get-Inventory -Get $noApps).Own)
+            @($own | ForEach-Object DisplayName) -join ',' | Should -Be 'SENTINEL-OWN-APP'
+            $own[0].Enabled | Should -BeTrue
+        }
+
+        It 'counts each consenting person once, across resources' {
+            $data = Get-MbcAppInventoryData -Get $script:Get -TenantId $script:Tenant
+            $data.Grants = @($data.Grants) + @([ordered]@{ id = 'g9'; clientId = '00000000-0000-4000-8000-0000000000a4'; consentType = 'Principal'; principalId = '00000000-0000-4000-8000-0000000000e3'; resourceId = '00000000-0000-4000-8000-0000000000a2'; scope = 'Files.Read' })
+            $notes = (ConvertTo-MbcAppInventory -Data $data -TenantId $script:Tenant).ThirdParty | Where-Object DisplayName -eq 'Sample Notes'
+            $notes.UserConsentCount | Should -Be 3
+            ($notes.Delegated | ForEach-Object Users | Measure-Object -Maximum).Maximum | Should -Be 2
+        }
+
         It 'can be left out, and says so' {
             $inv = New-MbcSkippedInventory
             $inv.Collected | Should -BeFalse

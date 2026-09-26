@@ -66,7 +66,7 @@ function Invoke-BaselineCheck {
 
     if ($SkipAppInventory) { $Inventory = { param($OnProgress) $null = $OnProgress; New-MbcSkippedInventory } }
     elseif (-not $Inventory) {
-        $tenantId = [string]$Connection.TenantId
+        $tenantId = if ($Connection) { [string]$Connection.TenantId } else { '' }
         $Inventory = { param($OnProgress) Invoke-MbcInventory -TenantId $tenantId -Log $log -OnProgress $OnProgress }
     }
 
