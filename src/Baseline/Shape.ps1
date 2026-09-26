@@ -60,11 +60,20 @@ function Test-MbcCheckShape {
         $p.Add("${Where}: title must be text of 1 to 200 characters")
     }
     $request = $Check['request']
-    if (-not ($request -is [string] -and $request -match '^/' -and $request -notmatch '://|\.\.|\s')) {
+    # '%' itself is never refused here: a request may legitimately carry an encoded literal, such as
+    # %20 or %27, inside a path segment. What must be refused is traversal, including encoded traversal
+    # (%2e%2e), so the '..' test runs against the decoded path rather than the raw one.
+    if (-not ($request -is [string] -and $request -match '^/' -and $request -notmatch '://|\s')) {
         $p.Add("${Where}: request must be a Graph path starting with '/', like /policies/authorizationPolicy")
     }
-    elseif ($Endpoints.Count -gt 0 -and -not (Test-MbcRequestDeclared -Request $request -Endpoints $Endpoints)) {
-        $p.Add("${Where}: request '$request' is not under a declared endpoint")
+    else {
+        $decodedRequest = [uri]::UnescapeDataString($request)
+        if ($decodedRequest -match '\.\.') {
+            $p.Add("${Where}: request must be a Graph path starting with '/', like /policies/authorizationPolicy")
+        }
+        elseif ($Endpoints.Count -gt 0 -and -not (Test-MbcRequestDeclared -Request $decodedRequest -Endpoints $Endpoints)) {
+            $p.Add("${Where}: request '$request' is not under a declared endpoint")
+        }
     }
 
     $hasSelect = $Check.Contains('select')
@@ -120,7 +129,7 @@ function Test-MbcPresetShape {
     if (-not ((Test-MbcIsList $Preset['endpoints']) -and $Preset['endpoints'].Count -gt 0)) { $p.Add("${Where}: endpoints must be a non-empty list") }
     else {
         foreach ($e in $Preset['endpoints']) {
-            if ($e -is [string] -and $e -match '^/[^\s?]*$' -and $e -notmatch '\.\.') { $endpoints.Add($e) }
+            if ($e -is [string] -and $e -match '^/[^\s?/][^\s?]*$' -and $e -notmatch '\.\.') { $endpoints.Add($e) }
             else { $p.Add("${Where}: endpoint '$e' must be a Graph path starting with '/', with no query string") }
         }
     }
@@ -187,8 +196,15 @@ function Test-MbcBaselineShape {
         foreach ($k in $expected.Keys) { if (-not $checksById.ContainsKey($k)) { $p.Add("expected ${k}: there is no such check in the preset") } }
         foreach ($id in $checksById.Keys) {
             $check = $checksById[$id]
-            if ($check['operator'] -in 'exists', 'absent') { continue }
+            if ($check['operator'] -in 'exists', 'absent') {
+                if ($expected.Contains($id)) { $p.Add("check ${id}: $($check['operator']) takes no expected value") }
+                continue
+            }
             if (-not $expected.Contains($id)) { $p.Add("check ${id}: has no expected value"); continue }
+            # A missing or invalid operator is already reported by Test-MbcPresetShape above. Casting it
+            # to [string] for Get-MbcExpectedMisfit would pass an empty string to a mandatory [string]
+            # parameter, which PowerShell refuses to bind — so skip rather than let that throw.
+            if ($check['operator'] -notin $script:MbcOperators) { continue }
             $misfit = Get-MbcExpectedMisfit -Operator ([string]$check['operator']) -Value $expected[$id]
             if ($misfit) { $p.Add("check ${id}: $($check['operator']) $misfit") }
         }

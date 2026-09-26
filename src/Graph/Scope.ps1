@@ -4,23 +4,18 @@ $script:MbcIdentityScopes = @('openid', 'profile', 'offline_access', 'email')
 function Test-MbcReadScope {
     <#
     .SYNOPSIS
-        True when a scope is recognisably a read: Resource.Read or Resource.ReadBasic, with qualifiers,
-        and no write verb anywhere. A scope that is not recognisably a read is treated as a write.
+        True when a scope has the strict shape of a read: a resource, then Read or ReadBasic in
+        second position, then at most one qualifier segment, and nothing else. A write word is
+        refused in the resource ('write' anywhere in it) and a broader set of write words is
+        refused in the qualifier. Anything that does not match this shape is treated as a write:
+        fail closed, never open.
     #>
     [CmdletBinding()]
     [OutputType([bool])]
     param([Parameter(Mandatory)][AllowEmptyString()][string] $Scope)
-    if ($Scope -in $script:MbcIdentityScopes) { return $true }
-    $parts = [string[]]($Scope -split '\.')
-    if ($parts.Count -lt 2) { return $false }
-    $readAt = [array]::FindIndex($parts, [Predicate[string]] { param($p) $p -ceq 'Read' -or $p -ceq 'ReadBasic' })
-    if ($readAt -lt 1) { return $false }
-    # Whole-segment match, not substring: a write verb occupies one full dot-separated part in every
-    # real Graph scope. A substring test would misfire on a resource or qualifier that merely contains
-    # one of these words, such as the qualifier 'ConditionalAccess' or the resource 'AdministrativeUnit'.
-    $writeVerbs = @('write', 'send', 'manage', 'create', 'delete', 'update', 'invite', 'execute', 'admin', 'full', 'access')
-    foreach ($p in $parts) {
-        if ($p.ToLowerInvariant() -in $writeVerbs) { return $false }
-    }
+    if ($Scope -cin $script:MbcIdentityScopes) { return $true }
+    if (-not ($Scope -cmatch '^(?<res>[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z][A-Za-z0-9]*)*)\.(?:Read|ReadBasic)(?:\.(?<qual>[A-Z][A-Za-z0-9]*))?$')) { return $false }
+    if ($Matches['res'] -match '(?i)write') { return $false }
+    if ($Matches['qual'] -and $Matches['qual'] -match '(?i)write|send|manage|create|delete|update|invite|execute|full|asuser|impersonat') { return $false }
     return $true
 }
