@@ -1,0 +1,51 @@
+{
+  "/servicePrincipals": { "value": [
+    { "id": "00000000-0000-4000-8000-0000000000a1", "appId": "00000003-0000-0000-c000-000000000000", "displayName": "Microsoft Graph",
+      "appOwnerOrganizationId": "f8cdef31-a31e-4b4a-93e4-5f571e91255a", "publisherName": "Microsoft Services", "verifiedPublisher": { "displayName": null, "verifiedPublisherId": null },
+      "servicePrincipalType": "Application", "accountEnabled": true, "tags": [], "appRoleAssignmentRequired": false },
+    { "id": "00000000-0000-4000-8000-0000000000a2", "appId": "00000000-0000-4000-8000-0000000000c2", "displayName": "Microsoft Example Service",
+      "appOwnerOrganizationId": "72f988bf-86f1-41af-91ab-2d7cd011db47", "publisherName": "Microsoft", "verifiedPublisher": null,
+      "servicePrincipalType": "Application", "accountEnabled": true, "tags": [], "appRoleAssignmentRequired": false },
+    { "id": "00000000-0000-4000-8000-0000000000a3", "appId": "00000000-0000-4000-8000-0000000000c3", "displayName": "Example Scheduler",
+      "appOwnerOrganizationId": "00000000-0000-4000-8000-0000000000f1", "publisherName": "Example Software Ltd",
+      "verifiedPublisher": { "displayName": "Example Software Ltd", "verifiedPublisherId": "1234567" },
+      "servicePrincipalType": "Application", "accountEnabled": true, "tags": ["WindowsAzureActiveDirectoryIntegratedApp"], "appRoleAssignmentRequired": true },
+    { "id": "00000000-0000-4000-8000-0000000000a4", "appId": "00000000-0000-4000-8000-0000000000c4", "displayName": "Sample Notes",
+      "appOwnerOrganizationId": "00000000-0000-4000-8000-0000000000f2", "publisherName": "Sample Apps",
+      "verifiedPublisher": { "displayName": null, "verifiedPublisherId": null },
+      "servicePrincipalType": "Application", "accountEnabled": false, "tags": [], "appRoleAssignmentRequired": false },
+    { "id": "00000000-0000-4000-8000-0000000000a5", "appId": "00000000-0000-4000-8000-0000000000b1", "displayName": "SENTINEL-OWN-APP",
+      "appOwnerOrganizationId": "00000000-0000-4000-8000-000000000001", "publisherName": "Example Ltd", "verifiedPublisher": null,
+      "servicePrincipalType": "Application", "accountEnabled": true, "tags": [], "appRoleAssignmentRequired": false },
+    { "id": "00000000-0000-4000-8000-0000000000a6", "appId": "00000000-0000-4000-8000-0000000000c6", "displayName": "automation-identity",
+      "appOwnerOrganizationId": null, "publisherName": null, "verifiedPublisher": null,
+      "servicePrincipalType": "ManagedIdentity", "accountEnabled": true, "tags": [], "appRoleAssignmentRequired": false }
+  ] },
+  "/applications": { "value": [
+    { "id": "00000000-0000-4000-8000-0000000000d1", "appId": "00000000-0000-4000-8000-0000000000b1", "displayName": "SENTINEL-OWN-APP",
+      "signInAudience": "AzureADMyOrg", "createdDateTime": "2025-03-01T10:00:00Z", "publisherDomain": "example.onmicrosoft.com", "verifiedPublisher": null },
+    { "id": "00000000-0000-4000-8000-0000000000d2", "appId": "00000000-0000-4000-8000-0000000000b2", "displayName": "SENTINEL-OWN-APP-TWO",
+      "signInAudience": "AzureADMyOrg", "createdDateTime": "2025-04-01T10:00:00Z", "publisherDomain": "example.onmicrosoft.com", "verifiedPublisher": null }
+  ] },
+  "/oauth2PermissionGrants": { "value": [
+    { "id": "g1", "clientId": "00000000-0000-4000-8000-0000000000a3", "consentType": "AllPrincipals", "principalId": null,
+      "resourceId": "00000000-0000-4000-8000-0000000000a1", "scope": " User.Read Mail.Read " },
+    { "id": "g2", "clientId": "00000000-0000-4000-8000-0000000000a4", "consentType": "Principal", "principalId": "00000000-0000-4000-8000-0000000000e1",
+      "resourceId": "00000000-0000-4000-8000-0000000000a1", "scope": "Notes.Read User.Read" },
+    { "id": "g3", "clientId": "00000000-0000-4000-8000-0000000000a4", "consentType": "Principal", "principalId": "00000000-0000-4000-8000-0000000000e2",
+      "resourceId": "00000000-0000-4000-8000-0000000000a1", "scope": "User.Read" },
+    { "id": "g4", "clientId": "00000000-0000-4000-8000-0000000000a2", "consentType": "AllPrincipals", "principalId": null,
+      "resourceId": "00000000-0000-4000-8000-0000000000a1", "scope": "Directory.Read.All" }
+  ] },
+  "/servicePrincipals/00000000-0000-4000-8000-0000000000a3/appRoleAssignments": { "value": [
+    { "appRoleId": "00000000-0000-4000-8000-00000000aa01", "resourceId": "00000000-0000-4000-8000-0000000000a1", "resourceDisplayName": "Microsoft Graph" },
+    { "appRoleId": "00000000-0000-4000-8000-00000000aa09", "resourceId": "00000000-0000-4000-8000-0000000000a1", "resourceDisplayName": "Microsoft Graph" }
+  ] },
+  "/servicePrincipals/00000000-0000-4000-8000-0000000000a4/appRoleAssignments": { "value": [] },
+  "/servicePrincipals/00000000-0000-4000-8000-0000000000a5/appRoleAssignments": { "value": [] },
+  "/servicePrincipals/00000000-0000-4000-8000-0000000000a1": {
+    "id": "00000000-0000-4000-8000-0000000000a1", "displayName": "Microsoft Graph",
+    "appRoles": [ { "id": "00000000-0000-4000-8000-00000000aa01", "value": "User.Read.All", "displayName": "Read all users' full profiles" } ],
+    "oauth2PermissionScopes": [ { "id": "00000000-0000-4000-8000-00000000ab01", "value": "User.Read" } ]
+  }
+}
