@@ -149,9 +149,46 @@ InModuleScope M365BaselineCheck {
             @($script:Frames | Where-Object { $_ -like '*New team key*mbc-key:1:*password manager*' }).Count | Should -BeGreaterThan 0
         }
 
+        It 'drafts a baseline from a chosen preset, suggests where to put it, and chooses the draft' {
+            $s = Start-Session @('s', 'd', '<Enter>', '<Enter>', '<Escape>', '<Escape>', 'q') -NoBaseline
+            $draft = Join-Path $s.OutputRoot 'baselines/example-tenant-hygiene.baseline.json'
+            Test-Path $draft | Should -BeTrue
+            # This seam reads few of the example's requests, so most values are left to fill in by hand:
+            # the incomplete draft is written, listed by reason, and not chosen, since it can't run.
+            $s.Baseline | Should -BeNullOrEmpty
+            $panel = @($script:Frames | Where-Object { $_ -like '*Draft written*' })[-1]
+            $panel | Should -BeLike '*Left for you to fill in by hand, * checks:*not connected*EXO-001*PUR-002*'
+            $panel | Should -BeLike "*It can't run until it is sealed.*"
+        }
+
+        It 'says so when a folder is given where a file is wanted' {
+            Start-Session @('b', 'p', $TestDrive, '<Enter>', '<Escape>', 'q') -NoBaseline | Out-Null
+            @($script:Frames | Where-Object { $_ -like '*That is a folder. Choose a file: a baseline (.json).*' }).Count | Should -BeGreaterThan 0
+        }
+
         It 'filters results by text through the prompt' {
             $s = Start-Session @('r', '/', 'conditional', '<Enter>', 'a', 'q', 'y', '<Enter>')
             $s.Search | Should -Be 'conditional'
+        }
+    }
+
+    Describe 'Leaving nothing signed in' {
+        BeforeEach {
+            Mock Get-MbcTerminalCapability { New-MbcCapability -Width 100 -Height 30 -Interactive $true }
+            Mock Enter-MbcScreen { }
+            Mock Exit-MbcScreen { }
+            Mock Invoke-MbcDisconnectAll { , @('Graph', 'Exchange Online') }
+        }
+        It 'signs out of everything when the view closes after signing in' {
+            Mock Invoke-MbcTuiLoop { $State.Connection = [pscustomobject]@{ Account = 'operator@example.com' } }
+            $said = Start-BaselineCheck -OutputRoot (Join-Path $TestDrive 'q1') 6>&1 | ForEach-Object { [string]$_ }
+            Should -Invoke Invoke-MbcDisconnectAll -Times 1 -Exactly
+            ($said -join "`n") | Should -BeLike '*Signed out of Graph, Exchange Online.*'
+        }
+        It 'touches nothing when it never signed in' {
+            Mock Invoke-MbcTuiLoop { }
+            Start-BaselineCheck -OutputRoot (Join-Path $TestDrive 'q2') 6>$null
+            Should -Invoke Invoke-MbcDisconnectAll -Times 0 -Exactly
         }
     }
 

@@ -1,5 +1,5 @@
 ╭─ M365 Baseline Check ───────────────── v0.1.0 ─╮
-│ Tenant    Example Ltd · exam…  admin@example.… │
+│ Tenant    Example Ltd · ex…  ● admin@example.… │
 │ Sessions  Graph ·…                             │
 │ Baseline  Example tenant hygiene · …  sealed ✓ │
 ╰────────────────────────────────────────────────╯
@@ -9,7 +9,7 @@
     Last results                               l
     App inventory                              i
     Open a locked result…                      o
-    Build or seal a baseline…                  s
+    Make a baseline: draft, seal, team key…    s
     Sign in / switch account                   c
     Read the app inventory with each run: …    t
     Quit                                       q

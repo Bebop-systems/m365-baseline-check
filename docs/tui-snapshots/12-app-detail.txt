@@ -1,4 +1,5 @@
- M365 Baseline Check · App ────────────────────────────── Example tenant hygiene v1 · 166cee0ba798
+ M365 Baseline Check · App ────────────────────────────── Example tenant hygiene v2 · dc1e31c4226c
+ ● Example Ltd · example.com  as admin@example.com  ✗ Security & Compliance not connected
 
   Handy PDF Signer
 
@@ -9,7 +10,6 @@
 
   Delegated, user consent
     Microsoft Graph       Files.ReadWrite.All, User.Read (3 users)
-
 
 
 

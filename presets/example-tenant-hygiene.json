@@ -81,14 +81,14 @@
     {
       "id": "INTUNE-001", "title": "Mark devices with no compliance policy assigned as", "area": "intune",
       "location": "Devices › Compliance › Compliance settings",
-      "request": "/deviceManagement", "select": "settings.secureByDefault",
+      "request": "/deviceManagement?$select=settings", "select": "settings.secureByDefault",
       "operator": "equals", "severity": "high", "labels": { "true": "Not compliant", "false": "Compliant" },
       "why": "A device nobody has assessed should not count as compliant."
     },
     {
       "id": "INTUNE-002", "title": "Compliance status validity period (days)", "area": "intune",
       "location": "Devices › Compliance › Compliance settings",
-      "request": "/deviceManagement", "select": "settings.deviceComplianceCheckinThresholdDays",
+      "request": "/deviceManagement?$select=settings", "select": "settings.deviceComplianceCheckinThresholdDays",
       "operator": "equals", "severity": "low",
       "why": "A device that stops checking in should lose its compliant status in good time."
     },

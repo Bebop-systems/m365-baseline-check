@@ -101,6 +101,27 @@ InModuleScope M365BaselineCheck {
             { Connect-MbcSources -Preset $script:Preset -Transport $script:Transport } | Should -Throw '*Install-Module Microsoft.Graph.Authentication*'
         }
 
+        It 'closes any sessions left open before it signs in, and says so' {
+            Mock Invoke-MbcDisconnectAll { , @('Graph') }
+            $c = Connect-MbcSources -Preset $script:Preset -Transport $script:Transport
+            Should -Invoke Invoke-MbcDisconnectAll -Times 1 -Exactly
+            ($c.Disclosure -join "`n") | Should -BeLike '*Closed sessions already open before signing in: Graph.*'
+        }
+
+        It 'leaves nothing signed in when sign-in stops part-way' {
+            Mock Invoke-MbcDisconnectAll { , @() }
+            Mock Get-MbcMgContext { $null }
+            { Connect-MbcSources -Preset $script:Preset -Transport $script:Transport } | Should -Throw '*did not complete*'
+            Should -Invoke Invoke-MbcDisconnectAll -Times 2 -Exactly -Because 'once to start clean, once to clean up'
+        }
+
+        It 'keeps the Graph token cache in this process only, and Exchange off the Windows broker' {
+            $text = [System.IO.File]::ReadAllText((Join-Path $script:ModuleRoot 'src/Sources/Connect.ps1'))
+            $text | Should -BeLike '*Connect-MgGraph -Scopes $Scopes -ContextScope Process*'
+            $text | Should -BeLike '*Connect-ExchangeOnline * -DisableWAM*'
+            $text | Should -BeLike '*Connect-IPPSSession * -DisableWAM*'
+        }
+
         It 'refuses an Exchange session in another tenant than the Graph sign-in' {
             Mock Get-MbcExchangeConnections {
                 @([pscustomobject]@{ State = 'Connected'; IsEopSession = $false; ConnectionUri = 'https://outlook.office365.com'; ModuleName = 'tmpEXO_other'; TenantID = '00000000-0000-4000-8000-0000000000ff' })

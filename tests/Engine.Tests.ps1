@@ -148,6 +148,23 @@ InModuleScope M365BaselineCheck {
             (Invoke-MbcRun -Baseline $script:Baseline -Fetch $script:GoodFetch).Inventory | Should -BeNullOrEmpty
         }
 
+        It 'keeps empty and one-item lists as lists, in expected and actual values alike' {
+            $preset = Copy-Preset
+            $preset['checks'] = @($preset['checks'][1])
+            $preset['checks'][0]['operator'] = 'equals'
+            $one = { param($Item) New-MbcFetchResult -Ok $true -Body (ConvertFrom-MbcJson -Json '{"value":[{"state":"enabled","displayName":"Only"}]}') -Status 200 }
+            $none = { param($Item) New-MbcFetchResult -Ok $true -Body (ConvertFrom-MbcJson -Json '{"value":[]}') -Status 200 }
+            $b = [pscustomobject]@{ Document = [ordered]@{ preset = $preset; expected = [ordered]@{ 'CA-001' = @('Only') } } }
+            $r = (Invoke-MbcRun -Baseline $b -Fetch $one).Results[0]
+            $r.Verdict | Should -Be 'Pass' -Because 'a one-item list equals a one-item list'
+            , $r.Actual | Should -BeOfType [object[]]
+            , $r.Expected | Should -BeOfType [object[]]
+            $r = (Invoke-MbcRun -Baseline $b -Fetch $none).Results[0]
+            $r.Verdict | Should -Be 'Fail'
+            , $r.Actual | Should -BeOfType [object[]]
+            $r.Actual.Count | Should -Be 0
+        }
+
         It 'counts verdicts' {
             $c = Get-MbcCounts -Results @([pscustomobject]@{ Verdict = 'Pass' }, [pscustomobject]@{ Verdict = 'Error' }, [pscustomobject]@{ Verdict = 'Error' })
             "$($c.Pass) $($c.Fail) $($c.Error) $($c.Total)" | Should -Be '1 0 2 3'

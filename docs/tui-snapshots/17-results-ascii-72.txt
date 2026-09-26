@@ -1,4 +1,5 @@
- M365 Baseline Check - Results - Example tenant hygiene v1 - 166cee0b~
+ M365 Baseline Check - Results - Example tenant hygiene v2 - dc1e31c4~
+ * Example Ltd - example.com  a~  x Security & Compliance not connected
 
   13 met, 5 not, 2 unverifiable   - this run    Showing: needs attention
 
@@ -15,7 +16,6 @@
   v Defender  3 met - 1 not
     x Not met       Automatic forwarding rules  Automatic~ -> Off - For~
   > Microsoft 365 admin  1 met
-
 
 
 

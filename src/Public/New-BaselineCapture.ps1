@@ -24,12 +24,22 @@ function New-BaselineCapture {
     $preset = Read-MbcPreset -Path $PresetPath
     if ((Test-Path -LiteralPath $OutputPath) -and -not $Force) { throw "'$OutputPath' already exists. Use -Force to replace it." }
     if (-not $Name) { $Name = [string]$preset['name'] }
+    $connection = $null
     if (-not $Fetch) {
+        $plan = Get-MbcSignInPlan -Preset $preset
+        Write-Information "Signing in: $($plan.Count) sign-in$(if ($plan.Count -ne 1) { 's' }), one after another. Choose the same account each time."
+        foreach ($l in $plan) { Write-Information "  $l" }
         $connection = Connect-MbcSources -Preset $preset
         foreach ($d in $connection.Disclosure) { Write-Information $d }
         $Fetch = { param($Item) Invoke-MbcSourceFetch -Item $Item -Preset $preset -Connection $connection }
     }
-    $collected = Invoke-MbcCollection -Plan (Get-MbcRequestPlan -Preset $preset) -Fetch $Fetch
+    try { $collected = Invoke-MbcCollection -Plan (Get-MbcRequestPlan -Preset $preset) -Fetch $Fetch }
+    finally {
+        if ($connection) {
+            $closed = Invoke-MbcDisconnectAll
+            if (@($closed).Count) { Write-Information "Signed out of $(@($closed) -join ', ')." }
+        }
+    }
     $draft = New-MbcBaselineDraft -Preset $preset -Collected $collected -Name $Name -Version $Version
 
     if ($PSCmdlet.ShouldProcess($OutputPath, 'Write a draft baseline')) {

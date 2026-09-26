@@ -135,7 +135,8 @@ function Get-MbcCheckResult {
     )
     $id = [string]$Check['id']
     $item = Get-MbcPlanItem -Check $Check
-    $expectedValue = if ($Expected.Contains($id)) { $Expected[$id] } else { $null }
+    # The comma keeps a list whole: an if statement unrolls its output, turning @() into null and @('x') into 'x'.
+    $expectedValue = if ($Expected.Contains($id)) { , $Expected[$id] } else { $null }
     $cs = $Check.Contains('caseSensitive') -and [bool]$Check['caseSensitive']
     $actual = $script:MbcNotFound
     $verdict = 'Error'
@@ -162,6 +163,7 @@ function Get-MbcCheckResult {
     }
 
     $hasActual = -not (Test-MbcNotFound $actual)
+    $storedActual = if ($hasActual) { , $actual } else { $null }
     return [pscustomobject]@{
         PSTypeName = 'Mbc.CheckResult'
         Id         = $id
@@ -177,7 +179,7 @@ function Get-MbcCheckResult {
         Select     = [string]$Check['select']
         Operator   = [string]$Check['operator']
         Expected   = $expectedValue
-        Actual     = if ($hasActual) { $actual } else { $null }
+        Actual     = $storedActual
         HasActual  = $hasActual
         Verdict    = $verdict
         Cause      = $cause

@@ -49,7 +49,7 @@ function Initialize-MbcDemoTenant {
     }.GetNewClosure()
     $baselinePath = Join-Path $Root 'presets/example-tenant-hygiene.baseline.json'
     $connection = [pscustomobject]@{
-        PSTypeName = 'Mbc.Connection'; Account = 'admin@example.onmicrosoft.com'; TenantId = '00000000-0000-4000-8000-000000000001'
+        PSTypeName = 'Mbc.Connection'; Account = 'admin@example.com'; TenantId = '00000000-0000-4000-8000-000000000001'
         TenantName = 'Example Ltd'; Domain = 'example.com'
         Scopes = @('Application.Read.All', 'Directory.Read.All', 'Policy.Read.All', 'User.Read', 'Directory.ReadWrite.All'); WriteScopes = @('Directory.ReadWrite.All')
         Roles = @('Global Administrator'); RolesCause = $null

@@ -120,7 +120,7 @@ function New-MbcResultDocument {
             domain  = if ($Connection) { [string]$Connection.Domain } else { '' }
             account = if ($Connection) { [string]$Connection.Account } else { '' }
         }
-        disclosure    = if ($Connection) { @($Connection.Disclosure) } else { @() }
+        disclosure    = if ($Connection) { , @($Connection.Disclosure) } else { , @() }
         baseline      = [ordered]@{ name = $Baseline.Name; version = $Baseline.Version; fingerprint = $Baseline.Fingerprint; digest = $Baseline.Digest; sealState = $Baseline.SealState }
         counts        = [ordered]@{ pass = [long]$Run.Counts.Pass; fail = [long]$Run.Counts.Fail; error = [long]$Run.Counts.Error; total = [long]$Run.Counts.Total }
         results       = @($results)

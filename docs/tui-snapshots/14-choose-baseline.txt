@@ -1,11 +1,11 @@
- M365 Baseline Check · Choose a baseline ──────────────── Example tenant hygiene v1 · 166cee0ba798
+ M365 Baseline Check · Choose a baseline ──────────────── Example tenant hygiene v2 · dc1e31c4226c
+ ● Example Ltd · example.com  as admin@example.com  ✗ Security & Compliance not connected
 
   ▸ core-tenant.json
     core-tenant-v4-draft.json
     example-tenant-hygiene.baseline.json
 
   ~/M365BaselineCheck/baselines/core-tenant.json
-
 
 
 

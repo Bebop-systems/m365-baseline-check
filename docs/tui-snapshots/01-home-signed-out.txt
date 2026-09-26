@@ -1,7 +1,7 @@
 ╭─ M365 Baseline Check ─────────────────────────────────────────────────────────────────── v0.1.0 ─╮
-│ Tenant    not signed in                                                         r signs in, or c │
+│ Tenant    ○ not signed in                                                       r signs in, or c │
 │ Sessions  none                                                                                   │
-│ Baseline  Example tenant hygiene · v1 · 166cee0ba798                                    sealed ✓ │
+│ Baseline  Example tenant hygiene · v2 · dc1e31c4226c                                    sealed ✓ │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
   ▸ Run checks                                                                                   r
@@ -9,7 +9,7 @@
     Last results                                                                                 l
     App inventory                                                                                i
     Open a locked result…                                                                        o
-    Build or seal a baseline…                                                                    s
+    Make a baseline: draft, seal, team key…                                                      s
     Sign in / switch account                                                                     c
     Read the app inventory with each run: on                                                     t
     Quit                                                                                         q

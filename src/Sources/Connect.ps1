@@ -25,7 +25,8 @@ function Import-MbcSourceModule {
 function Invoke-MbcConnectMgGraph {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string[]] $Scopes)
-    Connect-MgGraph -Scopes $Scopes -NoWelcome -ErrorAction Stop | Out-Null
+    # Process scope: the token cache lives and dies with this PowerShell process; nothing is kept on disk.
+    Connect-MgGraph -Scopes $Scopes -ContextScope Process -NoWelcome -ErrorAction Stop | Out-Null
 }
 
 function Get-MbcMgContext {
@@ -36,6 +37,8 @@ function Get-MbcMgContext {
 
 function Invoke-MbcConnectExchange {
     # -CommandName loads only the declared cmdlets into the session module: nothing else is there to run.
+    # -DisableWAM: Exchange Online's Windows broker sign-in fails in a plain console with a null parent
+    # window (MSAL RuntimeBroker, NullReferenceException), where Graph's works. The browser sign-in doesn't.
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][ValidateSet('exo', 'compliance')][string] $Source,
@@ -43,10 +46,10 @@ function Invoke-MbcConnectExchange {
         [Parameter(Mandatory)][string[]] $CommandName
     )
     if ($Source -eq 'exo') {
-        Connect-ExchangeOnline -UserPrincipalName $UserPrincipalName -CommandName $CommandName -ShowBanner:$false -ShowProgress:$false -SkipLoadingCmdletHelp -ErrorAction Stop | Out-Null
+        Connect-ExchangeOnline -UserPrincipalName $UserPrincipalName -CommandName $CommandName -ShowBanner:$false -ShowProgress:$false -DisableWAM -ErrorAction Stop | Out-Null
     }
     else {
-        Connect-IPPSSession -UserPrincipalName $UserPrincipalName -CommandName $CommandName -ShowBanner:$false -ErrorAction Stop | Out-Null
+        Connect-IPPSSession -UserPrincipalName $UserPrincipalName -CommandName $CommandName -ShowBanner:$false -DisableWAM -ErrorAction Stop | Out-Null
     }
 }
 
@@ -58,17 +61,38 @@ function Get-MbcExchangeConnections {
 }
 
 function Invoke-MbcDisconnectAll {
-    # Every session this tool opened. Failures to disconnect are logged, never fatal.
+    <#
+    .SYNOPSIS
+        Closes every Graph, Exchange Online and Security & Compliance session in this process, whoever
+        opened it, and returns the names of what it closed. Graph is also signed out of the Windows
+        broker. Never throws: a failure to close is logged and reported.
+    #>
     [CmdletBinding()]
-    param([AllowNull()] $Connection, [AllowNull()] $Log)
-    if ($Connection -and $Connection.Sessions.Count -gt 0 -and (Get-Command -Name Disconnect-ExchangeOnline -ErrorAction SilentlyContinue)) {
-        try { Disconnect-ExchangeOnline -Confirm:$false -ErrorAction Stop | Out-Null }
-        catch { Write-MbcLog -Log $Log -EventName 'signout' -Data @{ source = 'exo'; detail = $_.Exception.Message } }
+    [OutputType([string[]])]
+    param([AllowNull()] $Log)
+    $closed = [System.Collections.Generic.List[string]]::new()
+    $problems = [System.Collections.Generic.List[string]]::new()
+    if ((Get-Module -Name ExchangeOnlineManagement) -and (Get-Command -Name Get-ConnectionInformation -ErrorAction SilentlyContinue)) {
+        $open = @(Get-ConnectionInformation -ErrorAction SilentlyContinue | Where-Object { $_ })
+        if ($open.Count -gt 0) {
+            try {
+                Disconnect-ExchangeOnline -Confirm:$false -ErrorAction Stop | Out-Null
+                if (@($open | Where-Object { -not [bool]$_.IsEopSession }).Count) { $closed.Add('Exchange Online') }
+                if (@($open | Where-Object { [bool]$_.IsEopSession }).Count) { $closed.Add('Security & Compliance') }
+            }
+            catch { $problems.Add("Exchange: $($_.Exception.Message)") }
+        }
     }
-    if (Get-Command -Name Disconnect-MgGraph -ErrorAction SilentlyContinue) {
-        try { Disconnect-MgGraph -ErrorAction Stop | Out-Null }
-        catch { Write-MbcLog -Log $Log -EventName 'signout' -Data @{ source = 'graph'; detail = $_.Exception.Message } }
+    if ((Get-Module -Name Microsoft.Graph.Authentication) -and (Get-MgContext -ErrorAction SilentlyContinue)) {
+        try { Disconnect-MgGraph -SignOutFromBroker -ErrorAction Stop | Out-Null }
+        catch {
+            try { Disconnect-MgGraph -ErrorAction Stop | Out-Null }
+            catch { $problems.Add("Graph: $($_.Exception.Message)") }
+        }
+        if (-not (Get-MgContext -ErrorAction SilentlyContinue)) { $closed.Add('Graph') }
     }
+    Write-MbcLog -Log $Log -EventName 'signout' -Data ([ordered]@{ closed = $closed.ToArray(); problems = $problems.ToArray() })
+    return , $closed.ToArray()
 }
 
 function Get-MbcSignInScopes {
@@ -128,6 +152,17 @@ function Find-MbcExchangeSession {
     return (Get-MbcSessionModuleName -ModuleName ([string]$match.ModuleName))
 }
 
+function Get-MbcSignInPlan {
+    # What the operator will be asked, in order, before anything is asked: one line per sign-in.
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param([Parameter(Mandatory)][System.Collections.IDictionary] $Preset)
+    $lines = [System.Collections.Generic.List[string]]::new()
+    $lines.Add('Graph: the Windows account picker, or a browser.')
+    foreach ($s in (Get-MbcPresetSources -Preset $Preset)) { $lines.Add("$($script:MbcSourceNames[$s]): a browser window.") }
+    return , $lines.ToArray()
+}
+
 function Get-MbcDeclaredCmdlets {
     [CmdletBinding()]
     [OutputType([string[]])]
@@ -163,6 +198,7 @@ function Format-MbcDisclosure {
     $lines = [System.Collections.Generic.List[string]]::new()
     $tenant = if ($Connection.TenantName) { "$($Connection.TenantName) ($($Connection.TenantId))" } else { [string]$Connection.TenantId }
     $lines.Add("Signed in as $($Connection.Account) to $tenant.")
+    if ($Connection.PSObject.Properties['ClosedFirst'] -and @($Connection.ClosedFirst).Count) { $lines.Add("Closed sessions already open before signing in: $(@($Connection.ClosedFirst) -join ', ').") }
     if ($null -eq $Connection.Roles) { $lines.Add("Directory roles: couldn't be read ($($Connection.RolesCause)).") }
     elseif (@($Connection.Roles).Count -eq 0) { $lines.Add('Directory roles: none.') }
     else { $lines.Add("Directory roles: $(@($Connection.Roles) -join ', ').") }
@@ -195,8 +231,31 @@ function Connect-MbcSources {
     }
     $sources = Get-MbcPresetSources -Preset $Preset
     Import-MbcSourceModule -Name $script:MbcModuleOrder[0]
+    # Start clean: nothing left open by anyone is reused, and whatever this sign-in opens is all there is.
+    $closedFirst = Invoke-MbcDisconnectAll -Log $Log
+    try {
+        return (Connect-MbcSourcesCore -Preset $Preset -Scopes $scopes -Sources $sources -ClosedFirst $closedFirst -Log $Log -Transport $Transport)
+    }
+    catch {
+        # A sign-in that stops part-way leaves nothing behind.
+        [void](Invoke-MbcDisconnectAll -Log $Log)
+        throw
+    }
+}
 
-    Invoke-MbcConnectMgGraph -Scopes $scopes
+function Connect-MbcSourcesCore {
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory)][System.Collections.IDictionary] $Preset,
+        [Parameter(Mandatory)][string[]] $Scopes,
+        [Parameter(Mandatory)][AllowEmptyCollection()][string[]] $Sources,
+        [AllowEmptyCollection()][string[]] $ClosedFirst = @(),
+        [AllowNull()] $Log,
+        [scriptblock] $Transport
+    )
+    $sources = $Sources
+    Invoke-MbcConnectMgGraph -Scopes $Scopes
     $context = Get-MbcMgContext
     if ($null -eq $context) { throw 'Sign-in did not complete.' }
     $account = [string]$context.Account
@@ -250,6 +309,7 @@ function Connect-MbcSources {
         Sessions    = $sessions
         Failed      = $failed
         Disclosure  = @()
+        ClosedFirst = [string[]]@($ClosedFirst)
     }
     $connection.Disclosure = Format-MbcDisclosure -Connection $connection
     Write-MbcLog -Log $Log -EventName 'signin' -Data ([ordered]@{

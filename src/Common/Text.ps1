@@ -22,14 +22,14 @@ function Get-MbcGlyphs {
     if ($Unicode) {
         return @{
             Unicode = $true; Pass = '✓'; Fail = '✗'; Error = '?'; Pointer = '▸'; Ellipsis = '…'; Dot = '·'; Arrow = '→'; Seal = '✓'
-            H = '─'; V = '│'; TL = '╭'; TR = '╮'; BL = '╰'; BR = '╯'; Track = '─'; Cursor = '▏'; Bullet = '•'; Collapsed = '▹'; Expanded = '▿'
+            H = '─'; V = '│'; TL = '╭'; TR = '╮'; BL = '╰'; BR = '╯'; Track = '─'; Cursor = '▏'; Bullet = '•'; Collapsed = '▹'; Expanded = '▿'; Signed = '●'; Unsigned = '○'
             Spinner = @('⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏')
             Bar = @('', '▏', '▎', '▍', '▌', '▋', '▊', '▉', '█')
         }
     }
     return @{
         Unicode = $false; Pass = '+'; Fail = 'x'; Error = '?'; Pointer = '>'; Ellipsis = '~'; Dot = '-'; Arrow = '->'; Seal = 'ok'
-        H = '-'; V = '|'; TL = '+'; TR = '+'; BL = '+'; BR = '+'; Track = '.'; Cursor = '_'; Bullet = '*'; Collapsed = '>'; Expanded = 'v'
+        H = '-'; V = '|'; TL = '+'; TR = '+'; BL = '+'; BR = '+'; Track = '.'; Cursor = '_'; Bullet = '*'; Collapsed = '>'; Expanded = 'v'; Signed = '*'; Unsigned = 'o'
         Spinner = @('|', '/', '-', '\')
         Bar = @('', '', '', '', '', '', '', '', '#')
     }

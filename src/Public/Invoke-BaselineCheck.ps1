@@ -40,6 +40,7 @@ function Invoke-BaselineCheck {
         [void](ConvertFrom-MbcTeamKeyText -Text $keyText)
     }
 
+    $signedIn = $false
     $root = Get-MbcOutputRoot -Root $OutputRoot
     $runId = New-MbcRunId
     $log = New-MbcRunLog -Directory (Join-Path $root 'logs') -RunId $runId -Digest $b.Digest
@@ -56,7 +57,11 @@ function Invoke-BaselineCheck {
     & $say (ConvertTo-MbcGlyphText ('{0} {1} v{2} {1} {3} {1} {4}' -f $b.Name, $g.Dot, $b.Version, $b.Fingerprint, $seal) $g)
 
     if (-not $Fetch) {
+        $plan = Get-MbcSignInPlan -Preset $preset
+        & $say "Signing in: $($plan.Count) sign-in$(if ($plan.Count -ne 1) { 's' }), one after another. Choose the same account each time."
+        foreach ($l in $plan) { & $say "  $l" }
         $Connection = Connect-MbcSources -Preset $preset -Log $log
+        $signedIn = $true
         $Fetch = { param($Item) Invoke-MbcSourceFetch -Item $Item -Preset $preset -Connection $Connection -Log $log }
     }
     if ($Connection -and $Connection.PSObject.Properties['Disclosure']) {
@@ -70,7 +75,14 @@ function Invoke-BaselineCheck {
         $Inventory = { param($OnProgress) Invoke-MbcInventory -TenantId $tenantId -Log $log -OnProgress $OnProgress }
     }
 
-    $run = Invoke-MbcRun -Baseline $b -Fetch $Fetch -RunId $runId -Inventory $Inventory -OnResult { param($r) Write-MbcCheckLog -Log $log -Result $r }
+    try { $run = Invoke-MbcRun -Baseline $b -Fetch $Fetch -RunId $runId -Inventory $Inventory -OnResult { param($r) Write-MbcCheckLog -Log $log -Result $r } }
+    finally {
+        # Everything is read; leave nothing signed in behind.
+        if ($signedIn) {
+            $closed = Invoke-MbcDisconnectAll -Log $log
+            if (@($closed).Count) { & $say "Signed out of $(@($closed) -join ', ')." }
+        }
+    }
     $document = New-MbcResultDocument -Run $run -Baseline $b -Connection $Connection
     $view = ConvertFrom-MbcResultDocument -Document $document
 

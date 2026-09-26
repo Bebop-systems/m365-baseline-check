@@ -1,9 +1,9 @@
- M365 Baseline Check · Export ─────────────────────────── Example tenant hygiene v1 · 166cee0ba798
+ M365 Baseline Check · Export ─────────────────────────── Example tenant hygiene v2 · dc1e31c4226c
+ ● Example Ltd · example.com  as admin@example.com  ✗ Security & Compliance not connected
 
   Team key, to lock the export. Leave it empty to write plaintext instead.
 
   > •••••••••••••••••••••••••••▏
-
 
 
 

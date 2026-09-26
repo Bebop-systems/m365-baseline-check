@@ -2,10 +2,20 @@
 # any effect for the runtime to carry out, and Format-MbcFrame, which draws the whole screen as strings.
 
 $script:MbcBuildMenu = @(
-    [pscustomobject]@{ Label = 'Seal a baseline file…'; Key = 's'; Action = 'sealFile' }
-    [pscustomobject]@{ Label = 'Draft a baseline from this tenant…'; Key = 'd'; Action = 'captureDraft' }
-    [pscustomobject]@{ Label = 'Generate a team key'; Key = 'n'; Action = 'newKey' }
+    [pscustomobject]@{ Label = 'Draft a baseline from a preset, reading this tenant…'; Key = 'd'; Action = 'captureDraft' }
+    [pscustomobject]@{ Label = 'Seal a baseline, once you have reviewed it…'; Key = 's'; Action = 'sealFile' }
+    [pscustomobject]@{ Label = 'Generate a team key, for locking exports'; Key = 'n'; Action = 'newKey' }
     [pscustomobject]@{ Label = 'Back'; Key = 'Esc'; Action = 'back' }
+)
+
+$script:MbcBuildGuide = @(
+    'A preset says what to check. A baseline is a preset plus the values you expect, sealed.',
+    '',
+    '1. Start from a preset: copy presets/example-tenant-hygiene.json into ~/M365BaselineCheck/presets/ and edit it. CLAUDE.md explains every field.',
+    '2. Draft a baseline: reads this tenant and writes what it finds as the expected values.',
+    '3. Review the draft, change any value you do not want to keep, then seal it. Only sealed baselines run.',
+    '',
+    'Keep your own presets and baselines in ~/M365BaselineCheck or a private repository, never in this public one.'
 )
 
 $script:MbcScreenKeys = @{
@@ -39,7 +49,7 @@ $script:MbcKeyHelp = @{
     '?'         = 'This help.'
 }
 
-$script:MbcScreenTitles = @{ build = 'Build or seal'; run = 'Running'; results = 'Results'; detail = 'Check'; apps = 'App inventory'; appDetail = 'App' }
+$script:MbcScreenTitles = @{ build = 'Make a baseline'; run = 'Running'; results = 'Results'; detail = 'Check'; apps = 'App inventory'; appDetail = 'App' }
 
 function New-MbcTuiState {
     [CmdletBinding()]
@@ -72,7 +82,7 @@ function Get-MbcHomeMenu {
         [pscustomobject]@{ Label = 'Last results'; Key = 'l'; Action = 'lastResults' }
         [pscustomobject]@{ Label = 'App inventory'; Key = 'i'; Action = 'apps' }
         [pscustomobject]@{ Label = 'Open a locked result…'; Key = 'o'; Action = 'openLocked' }
-        [pscustomobject]@{ Label = 'Build or seal a baseline…'; Key = 's'; Action = 'build' }
+        [pscustomobject]@{ Label = 'Make a baseline: draft, seal, team key…'; Key = 's'; Action = 'build' }
         [pscustomobject]@{ Label = 'Sign in / switch account'; Key = 'c'; Action = 'signIn' }
         [pscustomobject]@{ Label = "Read the app inventory with each run: $inventory"; Key = 't'; Action = 'toggleInventory' }
         [pscustomobject]@{ Label = 'Quit'; Key = 'q'; Action = 'quit' }
@@ -150,7 +160,7 @@ function Get-MbcHeaderHeight {
     [OutputType([int])]
     param([Parameter(Mandatory)][hashtable] $State)
     if ($State.Screen -eq 'home') { return 5 }
-    return 2
+    return 3
 }
 
 function Get-MbcBodyHeight {
@@ -388,21 +398,21 @@ function Format-MbcHomeHeader {
     $inner = $Cap.Width - 4
     $e = $Glyphs.Ellipsis
     $field = {
-        param($label, $text, $note)
+        param($label, $text, $note, $style)
         $room = [Math]::Max(8, $inner - 10 - (Measure-MbcWidth $note) - 2)
-        Join-MbcColumns ((Format-MbcStyle (Format-MbcPad $label 10) 'dim' $c) + (Limit-MbcText (ConvertTo-MbcGlyphText $text $Glyphs) $room $e)) $note $inner
+        Join-MbcColumns ((Format-MbcStyle (Format-MbcPad $label 10) 'dim' $c) + (Format-MbcStyle (Limit-MbcText (ConvertTo-MbcGlyphText $text $Glyphs) $room $e) $style $c)) $note $inner
     }
     $conn = $State.Connection
     if ($conn) {
         $tenant = (@($conn.TenantName, $conn.Domain) | Where-Object { $_ }) -join " $($Glyphs.Dot) "
-        $line1 = & $field 'Tenant' $tenant (Format-MbcStyle (Limit-MbcText $conn.Account ([int]($inner / 3)) $e) 'dim' $c)
+        $line1 = & $field 'Tenant' $tenant ((Format-MbcStyle "$($Glyphs.Signed) " 'ok' $c) + (Format-MbcStyle (Limit-MbcText $conn.Account ([int]($inner / 3)) $e) 'bold' $c)) 'title'
         $names = @('Graph') + @($conn.Sessions.Keys | ForEach-Object { $script:MbcSourceNames[$_] })
         $failed = @($conn.Failed.Keys | ForEach-Object { $script:MbcSourceNames[$_] })
         $note = if ($failed.Count) { Format-MbcStyle "$($failed -join ', ') not connected" 'warn' $c } else { Format-MbcStyle 'read-only by construction' 'dim' $c }
         $line2 = & $field 'Sessions' ($names -join " $($Glyphs.Dot) ") $note
     }
     else {
-        $line1 = & $field 'Tenant' 'not signed in' (Format-MbcStyle 'r signs in, or c' 'dim' $c)
+        $line1 = & $field 'Tenant' "$($Glyphs.Unsigned) not signed in" (Format-MbcStyle 'r signs in, or c' 'dim' $c) 'warn'
         $line2 = & $field 'Sessions' 'none' ''
     }
     $b = $State.Baseline
@@ -428,7 +438,29 @@ function Format-MbcScreenHeader {
     }
     else { '' }
     $bar = Format-MbcTitleBar -Left (ConvertTo-MbcGlyphText "M365 Baseline Check $($Glyphs.Dot) $title" $Glyphs) -Right (ConvertTo-MbcGlyphText $right $Glyphs) -Width $Cap.Width -Glyphs $Glyphs -Color $Cap.Color
-    return , @($bar, '')
+    return , @($bar, (Format-MbcIdentityLine -State $State -Cap $Cap -Glyphs $Glyphs), '')
+}
+
+function Format-MbcIdentityLine {
+    # Who the tool is signed in as, on every screen: the tenant, the account, and the sessions open.
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([Parameter(Mandatory)][hashtable] $State, [Parameter(Mandatory)] $Cap, [Parameter(Mandatory)][hashtable] $Glyphs)
+    $c = $Cap.Color
+    $conn = $State.Connection
+    if (-not $conn) { return ' ' + (Format-MbcStyle "$($Glyphs.Unsigned) Not signed in" 'warn' $c) }
+    $tenant = (@($conn.TenantName, $conn.Domain) | Where-Object { $_ }) -join " $($Glyphs.Dot) "
+    $sessions = @('Graph') + @($conn.Sessions.Keys | ForEach-Object { $script:MbcSourceNames[$_] })
+    $failed = @($conn.Failed.Keys | ForEach-Object { $script:MbcSourceNames[$_] })
+    $failedTail = if ($failed.Count) { ConvertTo-MbcGlyphText "  $($Glyphs.Fail) $($failed -join ', ') not connected" $Glyphs } else { '' }
+    $fullTail = (ConvertTo-MbcGlyphText "  $($Glyphs.Dot) $($sessions -join ', ')" $Glyphs) + $failedTail
+    $room = [Math]::Max(10, $Cap.Width - 4)
+    $plain = ConvertTo-MbcGlyphText "$tenant  as $($conn.Account)" $Glyphs
+    # What fails matters more than what worked: the list of open sessions goes first when space is short.
+    $tail = if ($plain.Length + $fullTail.Length -le $room) { $fullTail } else { $failedTail }
+    $head = Limit-MbcText $plain ([Math]::Max(16, $room - $tail.Length)) $Glyphs.Ellipsis
+    $rest = Limit-MbcText $tail ([Math]::Max(0, $room - $head.Length)) $Glyphs.Ellipsis
+    return ' ' + (Format-MbcStyle $Glyphs.Signed 'ok' $c) + ' ' + (Format-MbcStyle $head 'title' $c) + (Format-MbcStyle $rest $(if ($failed.Count) { 'warn' } else { 'dim' }) $c)
 }
 
 function Format-MbcRunBody {
@@ -606,7 +638,20 @@ function Get-MbcScreenBody {
             }
             return , $lines.ToArray()
         }
-        'build' { return (Format-MbcMenu -Items $script:MbcBuildMenu -Selected $State.BuildIndex -Width $Cap.Width -Glyphs $Glyphs -Color $c) }
+        'build' {
+            $lines = [System.Collections.Generic.List[string]]::new()
+            foreach ($g in $script:MbcBuildGuide) {
+                $indent = if ($g.Length -gt 1 -and (Test-MbcAsciiDigit $g[0])) { '     ' } else { '  ' }
+                $first = $true
+                foreach ($w in (Split-MbcWrapped -Text (ConvertTo-MbcGlyphText $g $Glyphs) -Width ($Cap.Width - 7) -Ellipsis $Glyphs.Ellipsis)) {
+                    $lines.Add($(if ($first) { '  ' } else { $indent }) + (Format-MbcStyle $w 'dim' $c))
+                    $first = $false
+                }
+            }
+            $lines.Add('')
+            foreach ($l in (Format-MbcMenu -Items $script:MbcBuildMenu -Selected $State.BuildIndex -Width $Cap.Width -Glyphs $Glyphs -Color $c)) { $lines.Add($l) }
+            return , $lines.ToArray()
+        }
         'run' { return (Format-MbcRunBody -State $State -Cap $Cap -Glyphs $Glyphs -Height $Height) }
         'results' { return (Format-MbcResultsBody -State $State -Cap $Cap -Glyphs $Glyphs -Height $Height) }
         'detail' {
@@ -622,7 +667,21 @@ function Get-MbcScreenBody {
         }
         'chooser' { return (Format-MbcChooserBody -State $State -Cap $Cap -Glyphs $Glyphs -Height $Height) }
         'prompt' { return (Format-MbcPromptBody -State $State -Cap $Cap -Glyphs $Glyphs) }
-        'panel' { return , [string[]]@($State.Panel.Lines | ForEach-Object { ConvertTo-MbcGlyphText $_ $Glyphs }) }
+        'panel' {
+            # Long lines wrap under their own indent, so nothing on a panel is cut off.
+            $lines = [System.Collections.Generic.List[string]]::new()
+            foreach ($raw in @($State.Panel.Lines)) {
+                $text = ConvertTo-MbcGlyphText ([string]$raw) $Glyphs
+                $indent = $text.Length - $text.TrimStart(' ').Length
+                if ($text.Length -le $Cap.Width -or $indent -ge $Cap.Width - 10) { $lines.Add($text); continue }
+                $first = $true
+                foreach ($w in (Split-MbcWrapped -Text $text.TrimStart(' ') -Width ($Cap.Width - $indent - 2) -Ellipsis $Glyphs.Ellipsis)) {
+                    $lines.Add((' ' * $(if ($first) { $indent } else { $indent + 2 })) + $w)
+                    $first = $false
+                }
+            }
+            return , $lines.ToArray()
+        }
     }
     return , @('')
 }

@@ -1,4 +1,5 @@
- M365 Baseline Check · App inventory ──────────────────── Example tenant hygiene v1 · 166cee0ba798
+ M365 Baseline Check · App inventory ──────────────────── Example tenant hygiene v2 · dc1e31c4226c
+ ● Example Ltd · example.com  as admin@example.com  ✗ Security & Compliance not connected
 
   3 third-party, 2 own registrations. Not listed: 2 Microsoft apps, 1 other service principal.
 
@@ -8,7 +9,6 @@
     Northwind Calendar Sync           Northwind Software    ✓ yes     3 admin
     HR Reporting (own)                Example Ltd           no        1 admin · 1 app
     Intranet Search (test) (own)      example.com           no        no consents
-
 
 
 

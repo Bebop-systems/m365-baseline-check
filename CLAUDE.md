@@ -10,7 +10,8 @@ The design is in [`docs/superpowers/specs/2026-09-26-m365-baseline-check-design.
 ## Where internal presets and baselines live
 
 **Never in this repository.** This repository is public. Organisation-specific presets and baselines
-live in a private copy (a private fork, or a private repository that vendors this one), and travel
+live outside it: in `~/M365BaselineCheck/presets/` and `~/M365BaselineCheck/baselines/` (the tool
+creates both, and its choosers look there), or in a private repository the team shares. They travel
 however the team shares files. `baselines/` is ignored by git here so a stray copy can't be committed.
 The scrub gate (`tests/Scrub.Tests.ps1`) fails on any baseline or result outside `presets/` and
 `tests/fixtures/`, and on any GUID, email address or domain that isn't a synthetic example or a
@@ -171,8 +172,21 @@ Graph 2.x loads its own MSAL build in a separate context; importing it first let
 different MSAL build load beside it. Probed on Graph 2.38.1 and ExchangeOnlineManagement 3.10.0 by
 forcing MSAL initialisation in each order in a fresh process: both orders loaded without type-load
 errors, and Graph-first showed both builds loaded side by side. The floors are Graph 2.x and Exchange
-Online Management 3.x. A full interactive sign-in to both in one session has not yet been run against
-a real tenant; do that before relying on it, and record the result here.
+Online Management 3.x.
+
+First live run: Graph signed in through the Windows broker (WAM), but Exchange Online's broker sign-in
+failed with `NullReferenceException` in MSAL's `RuntimeBroker..ctor` (no parent window). Exchange Online
+and Security & Compliance therefore connect with `-DisableWAM`, a browser sign-in. Whether that works
+end to end still wants a second live run; record the result here.
+
+## Session hygiene
+
+Credentials and sessions are treated as hazardous. `Connect-MbcSources` closes any Graph and Exchange
+sessions already open in the process before signing in, and closes everything again if sign-in fails
+part-way. Graph connects with `-ContextScope Process`, so its token cache never reaches disk.
+`Invoke-MbcDisconnectAll` (Graph with `-SignOutFromBroker`, then Exchange) runs when the view quits,
+on account switch, and at the end of `Invoke-BaselineCheck` and `New-BaselineCapture`. Keep it that
+way: no new path may sign in without a matching sign-out.
 
 ## Gates
 

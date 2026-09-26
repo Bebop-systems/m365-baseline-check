@@ -373,9 +373,10 @@ function Format-MbcAppRow {
     $e = $Glyphs.Ellipsis
     $verified = if ($App.Verified) { "$($Glyphs.Pass) yes" } else { 'no' }
     $name = ConvertTo-MbcGlyphText $App.DisplayName $Glyphs
-    if ($App.Kind -eq 'own') { $name = "$name (own)" }
+    # The marker survives truncation: the name is cut, never the word that says whose app it is.
+    $nameCell = if ($App.Kind -eq 'own') { (Limit-MbcText $name ([Math]::Max(2, $c[0] - 6)) $e) + ' (own)' } else { Limit-MbcText $name $c[0] $e }
     $cells = @(
-        (Format-MbcPad (Limit-MbcText $name $c[0] $e) $c[0]),
+        (Format-MbcPad $nameCell $c[0]),
         (Format-MbcPad (Limit-MbcText (ConvertTo-MbcGlyphText $App.Publisher $Glyphs) $c[1] $e) $c[1]),
         (Format-MbcPad $verified $c[2]),
         (Limit-MbcText (Get-MbcConsentSummary -App $App -Glyphs $Glyphs) $c[3] $e)

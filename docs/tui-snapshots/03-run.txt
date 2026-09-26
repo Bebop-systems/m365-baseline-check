@@ -1,6 +1,7 @@
- M365 Baseline Check · Running ────────────────────────── Example tenant hygiene v1 · 166cee0ba798
+ M365 Baseline Check · Running ────────────────────────── Example tenant hygiene v2 · dc1e31c4226c
+ ● Example Ltd · example.com  as admin@example.com  ✗ Security & Compliance not connected
 
-  Checking Example tenant hygiene v1 against Example Ltd
+  Checking Example tenant hygiene v2 against Example Ltd
 
   ██████████████████████▌────────────  9 of 14
   ⠸ Get-MalwareFilterPolicy -Identity 'Default'
@@ -17,7 +18,6 @@
     ? Unverifiable  Device compliance policies                                    permission missing
     ✓ Met           Mailbox auditing on by default
     ✓ Met           Modern authentication for Outlook
-
 
 
 

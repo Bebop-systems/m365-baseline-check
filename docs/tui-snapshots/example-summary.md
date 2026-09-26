@@ -1,8 +1,8 @@
 ---
 baseline: "Example tenant hygiene"
-version: 1
-fingerprint: 166cee0ba798
-digest: 166cee0ba798909a07bad71bcf9baefdb55a0235221f79beec17d2686a49a2d0
+version: 2
+fingerprint: dc1e31c4226c
+digest: dc1e31c4226c28d08bde60be3eb21704316c0c15f158a3697ae2e2e041078627
 sealed: true
 run: 2026-09-26
 counts:
@@ -14,9 +14,9 @@ counts:
   admin: { met: 1, notMet: 0, unverifiable: 0 }
 ---
 
-# Example tenant hygiene v1
+# Example tenant hygiene v2
 
-Checked against fingerprint `166cee0ba798`, digest `166cee0ba798909a07bad71bcf9baefdb55a0235221f79beec17d2686a49a2d0`. Tenant values are left out of this summary by design.
+Checked against fingerprint `dc1e31c4226c`, digest `dc1e31c4226c28d08bde60be3eb21704316c0c15f158a3697ae2e2e041078627`. Tenant values are left out of this summary by design.
 
 ## Entra
 

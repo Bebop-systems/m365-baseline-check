@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "name": "Example tenant hygiene",
-  "version": 1,
+  "version": 2,
   "description": "The example preset with expected values filled in, sealed. For trying the tool out; copy it into a private repository before changing it.",
   "preset": {
     "schemaVersion": 1,
@@ -143,7 +143,7 @@
         "title": "Mark devices with no compliance policy assigned as",
         "area": "intune",
         "location": "Devices › Compliance › Compliance settings",
-        "request": "/deviceManagement",
+        "request": "/deviceManagement?$select=settings",
         "select": "settings.secureByDefault",
         "operator": "equals",
         "severity": "high",
@@ -158,7 +158,7 @@
         "title": "Compliance status validity period (days)",
         "area": "intune",
         "location": "Devices › Compliance › Compliance settings",
-        "request": "/deviceManagement",
+        "request": "/deviceManagement?$select=settings",
         "select": "settings.deviceComplianceCheckinThresholdDays",
         "operator": "equals",
         "severity": "low",
@@ -375,7 +375,7 @@
   },
   "seal": {
     "algorithm": "SHA-256",
-    "digest": "166cee0ba798909a07bad71bcf9baefdb55a0235221f79beec17d2686a49a2d0",
-    "sealedVersion": 1
+    "digest": "dc1e31c4226c28d08bde60be3eb21704316c0c15f158a3697ae2e2e041078627",
+    "sealedVersion": 2
   }
 }

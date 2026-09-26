@@ -1,11 +1,10 @@
 M365 Baseline Check report                                                               tool v0.1.0
 ────────────────────────────────────────────────────────────────────────────────────────────────────
-Baseline   Example tenant hygiene · v1 · 166cee0ba798
-Digest     SHA-256 166cee0ba798909a07bad71bcf9baefdb55a0235221f79beec17d2686a49a2d0
+Baseline   Example tenant hygiene · v2 · dc1e31c4226c
+Digest     SHA-256 dc1e31c4226c28d08bde60be3eb21704316c0c15f158a3697ae2e2e041078627
 Tenant     Example Ltd (example.com)
-Run        2026-09-26 21:42 UTC · run 20260926T141200Z-d3m0aa
-Sign-in    Signed in as admin@example.onmicrosoft.com to Example Ltd
-           (00000000-0000-4000-8000-000000000001).
+Run        2026-09-26 22:45 UTC · run 20260926T141200Z-d3m0aa
+Sign-in    Signed in as admin@example.com to Example Ltd (00000000-0000-4000-8000-000000000001).
 Sign-in    Directory roles: Global Administrator.
 Sign-in    Graph scopes granted: Application.Read.All, Directory.Read.All, Policy.Read.All,
            User.Read, Directory.ReadWrite.All (write).

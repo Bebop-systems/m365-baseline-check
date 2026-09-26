@@ -1,6 +1,7 @@
- M365 Baseline Check · Running ────────────────────────── Example tenant hygiene v1 · 166cee0ba798
+ M365 Baseline Check · Running ────────────────────────── Example tenant hygiene v2 · dc1e31c4226c
+ ● Example Ltd · example.com  as admin@example.com  ✗ Security & Compliance not connected
 
-  Checking Example tenant hygiene v1 against Example Ltd
+  Checking Example tenant hygiene v2 against Example Ltd
 
   ███████▌───────────────────────────  3 of 14
   ⠦ Graph asked for a pause: waiting 2 s
@@ -10,7 +11,6 @@
     ✓ Met           Guest invite restrictions
     ✗ Not met       Guest user access restrictions  Guest users have limi… → one of Guest user acce…
     ✓ Met           Security defaults
-
 
 
 

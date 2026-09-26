@@ -53,18 +53,47 @@ Sign-in opens a browser or account picker, for Graph and then each Exchange sess
 The sign-in line discloses the account, its directory roles, the granted scopes (write scopes marked)
 and the sessions connected, and ends with *Read-only by construction: GET-only Graph, Get- cmdlets only.*
 
-## Baselines
+## Make your own baseline
+
+Two kinds of file:
+
+- A **preset** says *what* to check: which settings, where to read them, how to compare. No values.
+- A **baseline** is a preset plus the values you *expect*, sealed so any later edit shows.
+
+The tool keeps your files in `~/M365BaselineCheck/` (it creates `presets/` and `baselines/` there).
+They belong to your organisation: keep them there, or in a private repository your team shares. Never
+put them in this public repository; a test here refuses them.
+
+1. **Start from a preset.** Copy `presets/example-tenant-hygiene.json` into
+   `~/M365BaselineCheck/presets/`, rename it, and remove, change or add checks. [`CLAUDE.md`](CLAUDE.md)
+   explains every field, and a Claude session can write checks for you from it.
+2. **Draft the baseline.** In the view: `s` (Make a baseline), then *Draft a baseline from a preset*.
+   Pick your preset; it signs in, reads the tenant, and writes what it finds as the expected values
+   into `~/M365BaselineCheck/baselines/`. Anything it couldn't read is listed for you to fill in.
+3. **Review and seal.** Open the draft, change any expected value you don't want to keep, then *Seal a
+   baseline* on the same screen. Sealing prints a line to record wherever your team catalogues
+   baselines. `b` on the home screen then offers it.
+
+The same, without the view:
 
 ```powershell
-New-BaselineCapture -PresetPath ./presets/example-tenant-hygiene.json -OutputPath ./baselines/core.json -Name 'Core tenant'
-Protect-Baseline ./baselines/core.json      # validate and seal; prints the line to record
-Test-Baseline ./baselines/core.json         # identity and seal state
+New-BaselineCapture -PresetPath ~/M365BaselineCheck/presets/core.json -OutputPath ~/M365BaselineCheck/baselines/core.json -Name 'Core tenant'
+Protect-Baseline ~/M365BaselineCheck/baselines/core.json    # validate and seal; prints the line to record
+Test-Baseline ~/M365BaselineCheck/baselines/core.json       # identity and seal state
 ```
 
-A seal proves a file hasn't changed since it was sealed, not who sealed it. Record the full digest
-wherever the team catalogues baselines; that record, compared with the digest in a result, is what
-proves which version a run used. Keep organisation-specific presets and baselines in a private copy,
-never in this repository.
+A seal proves a file hasn't changed since it was sealed, not who sealed it. Changing a sealed baseline
+means raising its `version` and sealing again. The full digest recorded in your catalogue, compared
+with the digest in a result, is what proves which version a run used.
+
+## Sign-in and sessions
+
+- A run signs in only to what the baseline uses: Graph always (the account picker), then a browser
+  sign-in for Exchange Online and for Security & Compliance when checks need them. The view lists the
+  sign-ins before the first one. Choose the same account each time.
+- Sessions left open in the PowerShell process are closed before signing in, so nothing is reused.
+- The Graph token cache is kept in the process only, never on disk.
+- Quitting the view, switching account, and the end of a plain run or capture sign out of everything.
 
 ## Results
 
