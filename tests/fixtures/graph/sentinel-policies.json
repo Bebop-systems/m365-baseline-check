@@ -1,0 +1,6 @@
+{
+  "value": [
+    { "id": "00000000-0000-4000-8000-0000000000aa", "displayName": "SENTINEL-POLICY-NAME", "state": "enabled",
+      "conditions": { "users": { "includeUsers": ["sentinel.user@example.com"] } } }
+  ]
+}

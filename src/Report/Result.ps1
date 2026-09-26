@@ -94,6 +94,7 @@ function New-MbcResultDocument {
             request    = $r.Request
             parameters = $r.Parameters
             apiVersion = $r.ApiVersion
+            select     = $r.Select
             operator   = $r.Operator
             expected   = $r.Expected
             hasActual  = $r.HasActual
@@ -159,6 +160,7 @@ function ConvertFrom-MbcResultDocument {
                 Request    = [string]$r['request']
                 Parameters = $parameters
                 ApiVersion = [string]$r['apiVersion']
+                Select     = [string]$r['select']
                 Operator   = [string]$r['operator']
                 Expected   = $r['expected']
                 Actual     = $r['actual']

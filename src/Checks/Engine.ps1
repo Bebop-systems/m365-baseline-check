@@ -174,6 +174,7 @@ function Get-MbcCheckResult {
         Request    = $item.Request
         Parameters = $item.Parameters
         ApiVersion = $item.ApiVersion
+        Select     = [string]$Check['select']
         Operator   = [string]$Check['operator']
         Expected   = $expectedValue
         Actual     = if ($hasActual) { $actual } else { $null }
