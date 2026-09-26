@@ -1,0 +1,12 @@
+{
+  "value": [
+    {
+      "Name": "example.onmicrosoft.com",
+      "AuditDisabled": false,
+      "OAuth2ClientProfileEnabled": true,
+      "SmtpActionableMessagesEnabled": true,
+      "DefaultPublicFolderMailbox": null,
+      "WhenChanged": "2026-01-15T09:30:00.0000000Z"
+    }
+  ]
+}

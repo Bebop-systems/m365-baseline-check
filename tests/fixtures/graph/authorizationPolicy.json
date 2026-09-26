@@ -1,0 +1,10 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#policies/authorizationPolicy/$entity",
+  "id": "authorizationPolicy",
+  "allowInvitesFrom": "adminsAndGuestInviters",
+  "guestUserRoleId": "2af84b1e-32c8-42b7-82bc-daa82404023b",
+  "defaultUserRolePermissions": {
+    "allowedToCreateApps": false,
+    "allowedToCreateSecurityGroups": false
+  }
+}

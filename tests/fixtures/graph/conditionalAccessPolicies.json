@@ -1,0 +1,11 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#identity/conditionalAccess/policies",
+  "value": [
+    { "id": "00000000-0000-4000-8000-000000000011", "displayName": "Block legacy authentication", "state": "enabled",
+      "conditions": { "clientAppTypes": ["exchangeActiveSync", "other"], "users": { "includeUsers": ["All"] } },
+      "grantControls": { "builtInControls": ["block"] } },
+    { "id": "00000000-0000-4000-8000-000000000012", "displayName": "Require MFA for admins", "state": "enabledForReportingButNotEnforced",
+      "conditions": { "clientAppTypes": ["all"], "users": { "includeUsers": ["None"] } },
+      "grantControls": { "builtInControls": ["mfa"] } }
+  ]
+}
