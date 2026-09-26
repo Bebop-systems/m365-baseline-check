@@ -82,10 +82,96 @@ InModuleScope M365BaselineCheck {
             $result.GetType().IsArray | Should -BeTrue
             $result.Count | Should -Be 1
         }
-        It 'requires exactly one of select and extractor' {
+        It 'requires select' {
+            $p = Get-Fixture 'preset-minimal.json'
+            $p['checks'][0].Remove('select')
+            (Test-MbcPresetShape -Preset $p) -join "`n" | Should -Match 'select must be text'
+        }
+        It 'refuses the old extractor member' {
             $p = Get-Fixture 'preset-minimal.json'
             $p['checks'][0]['extractor'] = 'extractors/x.ps1'
-            (Test-MbcPresetShape -Preset $p) -join "`n" | Should -Match 'exactly one of select or extractor'
+            (Test-MbcPresetShape -Preset $p) -join "`n" | Should -Match "unknown member 'extractor'"
+        }
+        It 'requires an area, from the fixed list' {
+            $p = Get-Fixture 'preset-minimal.json'
+            $p['checks'][0].Remove('area')
+            (Test-MbcPresetShape -Preset $p) -join "`n" | Should -Match 'area must be one of entra, exchange, intune, purview, defender, admin'
+            $p['checks'][0]['area'] = 'sharepoint'
+            (Test-MbcPresetShape -Preset $p) -join "`n" | Should -Match 'area must be one of'
+        }
+        It 'accepts location and labels, and checks their types' {
+            $p = Get-Fixture 'preset-minimal.json'
+            $p['checks'][0]['location'] = 'Identity > Users > User settings'
+            $p['checks'][0]['labels'] = [ordered]@{ 'true' = 'Yes'; 'false' = 'No' }
+            @(Test-MbcPresetShape -Preset $p) | Should -BeNullOrEmpty
+            $p['checks'][0]['location'] = 5L
+            $p['checks'][0]['labels'] = [ordered]@{ 'true' = 1L }
+            $text = (Test-MbcPresetShape -Preset $p) -join "`n"
+            $text | Should -Match 'location must be text'
+            $text | Should -Match 'labels must map value text to display text'
+        }
+        It 'accepts a declared cmdlet check with scalar parameters' {
+            $p = Get-Fixture 'preset-minimal.json'
+            $p['checks'][2]['parameters'] = [ordered]@{ Identity = 'Default'; ResultSize = 10L; Force = $true }
+            @(Test-MbcPresetShape -Preset $p) | Should -BeNullOrEmpty
+        }
+        It 'refuses a cmdlet that does not start with Get-' {
+            $p = Get-Fixture 'preset-minimal.json'
+            $p['checks'][2]['request'] = 'Set-OrganizationConfig'
+            $p['cmdlets']['exo'] = @('Set-OrganizationConfig')
+            $text = (Test-MbcPresetShape -Preset $p) -join "`n"
+            $text | Should -Match "cmdlets.exo: 'Set-OrganizationConfig' must be a Get- cmdlet"
+            $text | Should -Match 'request must be a Get- cmdlet name'
+        }
+        It 'refuses a cmdlet name with anything but letters and digits after Get-' {
+            Test-MbcCmdletName -Name 'Get-OrganizationConfig' | Should -BeTrue
+            Test-MbcCmdletName -Name 'get-organizationconfig' | Should -BeTrue
+            foreach ($bad in 'Get-', 'Get-*', 'Get-Org;Set-Org', 'Get-Org Config', 'Microsoft.Exchange\Get-Org', 'Get-Org-Config', 'GetOrg', '') {
+                Test-MbcCmdletName -Name $bad | Should -BeFalse -Because "'$bad' is not a plain Get- name"
+            }
+        }
+        It 'refuses a cmdlet check whose cmdlet is not declared under its source' {
+            $p = Get-Fixture 'preset-minimal.json'
+            $p['checks'][2]['source'] = 'compliance'
+            (Test-MbcPresetShape -Preset $p) -join "`n" | Should -Match "'Get-OrganizationConfig' is not declared under cmdlets.compliance"
+        }
+        It 'refuses parameters on a Graph check, and non-scalar parameter values' {
+            $p = Get-Fixture 'preset-minimal.json'
+            $p['checks'][0]['parameters'] = [ordered]@{ Identity = 'x' }
+            $p['checks'][2]['parameters'] = [ordered]@{ Identity = @('a', 'b') }
+            $text = (Test-MbcPresetShape -Preset $p) -join "`n"
+            $text | Should -Match 'check ORG-001: parameters are for cmdlet sources only'
+            $text | Should -Match 'check EXO-001: parameter Identity must be text, true or false, or a whole number'
+        }
+        It 'refuses apiVersion on a cmdlet check, and an unknown source' {
+            $p = Get-Fixture 'preset-minimal.json'
+            $p['checks'][2]['apiVersion'] = 'beta'
+            $p['checks'][1]['source'] = 'sharepoint'
+            $text = (Test-MbcPresetShape -Preset $p) -join "`n"
+            $text | Should -Match 'apiVersion is for Graph checks only'
+            $text | Should -Match 'source must be graph, exo or compliance'
+        }
+        It 'refuses cmdlets keyed by anything but exo or compliance' {
+            $p = Get-Fixture 'preset-minimal.json'
+            $p['cmdlets']['graph'] = @('Get-Thing')
+            (Test-MbcPresetShape -Preset $p) -join "`n" | Should -Match "cmdlets: unknown source 'graph'"
+        }
+        It 'allows empty endpoints and scopes when no check uses Graph' {
+            $p = Get-Fixture 'preset-minimal.json'
+            $p['checks'] = @($p['checks'][2])
+            $p['endpoints'] = @()
+            $p['scopes'] = @()
+            @(Test-MbcPresetShape -Preset $p) | Should -BeNullOrEmpty
+        }
+        It 'still requires a Graph check to be under a declared endpoint when endpoints are empty' {
+            $p = Get-Fixture 'preset-minimal.json'
+            $p['endpoints'] = @()
+            (Test-MbcPresetShape -Preset $p) -join "`n" | Should -Match 'not under a declared endpoint'
+        }
+        It 'decodes a declared endpoint before its own traversal check' {
+            $p = Get-Fixture 'preset-minimal.json'
+            $p['endpoints'] = @('/policies/%2e%2e/users')
+            (Test-MbcPresetShape -Preset $p) -join "`n" | Should -Match "endpoint '/policies/%2e%2e/users' must be a Graph path"
         }
         It 'rejects a duplicate check id' {
             $p = Get-Fixture 'preset-minimal.json'

@@ -48,8 +48,8 @@ function Assert-MbcBaselineUsable {
     )
     if ($ExpectedFingerprint) {
         $want = $ExpectedFingerprint.Trim().ToLowerInvariant()
-        if ($want -notmatch '^[0-9a-f]{12,64}$') { throw "-ExpectedFingerprint should be at least 12 hex characters; '$ExpectedFingerprint' isn't." }
-        if (-not $Baseline.Digest.StartsWith($want)) {
+        if (-not (Test-MbcLowerHex -Text $want -MinLength 12 -MaxLength 64)) { throw "-ExpectedFingerprint should be at least 12 hex characters; '$ExpectedFingerprint' isn't." }
+        if (-not $Baseline.Digest.StartsWith($want, [StringComparison]::Ordinal)) {
             throw ('Fingerprint mismatch: you expected {0}, but this file is {1}. It may be an older or newer copy than the one you catalogued.' -f $want.Substring(0, 12), $Baseline.Fingerprint)
         }
     }

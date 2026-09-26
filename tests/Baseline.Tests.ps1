@@ -84,5 +84,35 @@ InModuleScope M365BaselineCheck {
             $r.SealState | Should -Be 'Unsealed'
             [System.IO.File]::ReadAllText($script:Path) | Should -BeExactly $before
         }
+
+        It 'Test-Baseline reports a sealed file as Sealed' {
+            $id = Protect-Baseline -Path $script:Path -InformationAction SilentlyContinue
+            $r = Test-Baseline -Path $script:Path -InformationAction SilentlyContinue
+            $r.SealState | Should -Be 'Sealed'
+            $r.Digest | Should -Be $id.Digest
+        }
+
+        It 'explains a malformed seal instead of reading it' {
+            $doc = ConvertFrom-MbcJson -Json ([System.IO.File]::ReadAllText($script:Path))
+            $doc['seal'] = [ordered]@{ algorithm = 'SHA-256'; digest = 'ABC'; sealedVersion = 1L }
+            [System.IO.File]::WriteAllText($script:Path, (ConvertTo-MbcCanonicalJson $doc))
+            { Read-MbcBaseline -Path $script:Path } | Should -Throw '*64 lowercase hex*'
+        }
+
+        It 'stays Sealed when keys inside a nested object are reordered' {
+            Protect-Baseline -Path $script:Path -InformationAction SilentlyContinue | Out-Null
+            $doc = ConvertFrom-MbcJson -Json ([System.IO.File]::ReadAllText($script:Path))
+            $check = $doc['preset']['checks'][0]
+            $reordered = [ordered]@{}
+            foreach ($k in (@($check.Keys) | Sort-Object -Descending)) { $reordered[$k] = $check[$k] }
+            $doc['preset']['checks'][0] = $reordered
+            [System.IO.File]::WriteAllText($script:Path, (ConvertTo-MbcPrettyJson $doc))
+            (Read-MbcBaseline -Path $script:Path).SealState | Should -Be 'Sealed'
+        }
+
+        It 'leaves no temporary file behind after sealing' {
+            Protect-Baseline -Path $script:Path -InformationAction SilentlyContinue | Out-Null
+            @(Get-ChildItem -LiteralPath $TestDrive -File | Where-Object Name -ne 'b.json') | Should -BeNullOrEmpty
+        }
     }
 }

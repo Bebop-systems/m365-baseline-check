@@ -7,25 +7,43 @@
     "name": "Fixture preset",
     "scopes": ["Policy.Read.All"],
     "endpoints": ["/policies/authorizationPolicy", "/identity/conditionalAccess/policies"],
+    "cmdlets": { "exo": ["Get-OrganizationConfig"] },
     "checks": [
       {
         "id": "ORG-001",
-        "title": "Users cannot register applications",
+        "title": "Users can register applications",
+        "area": "entra",
+        "location": "Identity › Users › User settings",
         "request": "/policies/authorizationPolicy",
         "select": "defaultUserRolePermissions.allowedToCreateApps",
         "operator": "equals",
         "severity": "medium",
+        "labels": { "true": "Yes", "false": "No" },
         "why": "Registering an application is an administrative decision."
       },
       {
         "id": "CA-001",
-        "title": "At least one Conditional Access policy is enabled",
+        "title": "At least one Conditional Access policy is on",
+        "area": "entra",
+        "location": "Protection › Conditional Access › Policies",
         "request": "/identity/conditionalAccess/policies",
         "select": "value[?state=='enabled'].displayName",
         "operator": "countAtLeast",
         "severity": "high"
+      },
+      {
+        "id": "EXO-001",
+        "title": "Mailbox auditing on by default",
+        "area": "exchange",
+        "source": "exo",
+        "request": "Get-OrganizationConfig",
+        "select": "value[0].AuditDisabled",
+        "operator": "equals",
+        "severity": "high",
+        "labels": { "false": "On", "true": "Off" },
+        "why": "Mailbox audit records are how access to a mailbox is reconstructed afterwards."
       }
     ]
   },
-  "expected": { "ORG-001": false, "CA-001": 1 }
+  "expected": { "ORG-001": false, "CA-001": 1, "EXO-001": false }
 }

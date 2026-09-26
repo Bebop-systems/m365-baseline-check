@@ -78,6 +78,15 @@ InModuleScope M365BaselineCheck {
             (Compare-MbcValue -Actual 'x' -Operator 'matches' -Expected '(').Cause | Should -Be 'invalid pattern'
         }
 
+        It 'has exactly the closed vocabulary of spec 7.4, in order' {
+            $script:MbcCauses -join '|' | Should -BeExactly ((
+                'permission missing', 'not found', 'throttled', 'service error', 'malformed response',
+                'request rejected', 'too many pages', 'setting not found', 'baseline expects a list',
+                'baseline expects a single value', 'invalid pattern', 'pattern too slow', 'request not declared',
+                'not connected', 'cmdlet not available', 'cmdlet failed', 'not collected'
+            ) -join '|')
+        }
+
         It 'only ever uses causes from the closed vocabulary' {
             $samples = @(
                 (Compare-MbcValue -Actual $script:MbcNotFound -Operator 'equals' -Expected 1L),

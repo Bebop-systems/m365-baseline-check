@@ -26,7 +26,7 @@ function Protect-Baseline {
     $sealed['seal'] = [ordered]@{ algorithm = 'SHA-256'; digest = $b.Digest; sealedVersion = $b.Version }
 
     if ($PSCmdlet.ShouldProcess($b.Path, "Seal $($b.Name) v$($b.Version)")) {
-        [System.IO.File]::WriteAllText($b.Path, (ConvertTo-MbcPrettyJson -Value $sealed), [System.Text.UTF8Encoding]::new($false))
+        Write-MbcFileAtomic -Path $b.Path -Text (ConvertTo-MbcPrettyJson -Value $sealed)
         Write-Information ('Sealed. {0} is v{1}; its fingerprint is {2}. Record it wherever you keep these:' -f $b.Name, $b.Version, $b.Fingerprint) -InformationAction Continue
         Write-Information ('  {0} · v{1} · SHA-256 {2}' -f $b.Name, $b.Version, $b.Digest) -InformationAction Continue
     }

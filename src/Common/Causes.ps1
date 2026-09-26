@@ -1,4 +1,5 @@
-# The closed vocabulary of reasons a check could not be completed. Summaries and exports only ever use these.
+# The closed vocabulary of reasons a check could not be completed (spec 7.4). Summaries and exports only
+# ever use these.
 $script:MbcCauses = @(
     'permission missing',
     'not found',
@@ -8,12 +9,13 @@ $script:MbcCauses = @(
     'request rejected',
     'too many pages',
     'setting not found',
-    'extractor failed',
-    'extractor not allowed',
     'baseline expects a list',
     'baseline expects a single value',
     'invalid pattern',
     'pattern too slow',
-    'endpoint not declared',
+    'request not declared',
+    'not connected',
+    'cmdlet not available',
+    'cmdlet failed',
     'not collected'
 )

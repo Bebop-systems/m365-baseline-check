@@ -96,14 +96,6 @@ function ConvertTo-MbcJsonString {
     return $sb.ToString()
 }
 
-function Test-MbcIsWholeNumberType {
-    [CmdletBinding()]
-    [OutputType([bool])]
-    param([AllowNull()][object] $Value)
-    return ($Value -is [byte] -or $Value -is [sbyte] -or $Value -is [int16] -or $Value -is [uint16] -or
-        $Value -is [int] -or $Value -is [uint32] -or $Value -is [long] -or $Value -is [uint64])
-}
-
 function Get-MbcObjectMember {
     # A dictionary or PSCustomObject as an ordered list of name/value pairs.
     [CmdletBinding()]

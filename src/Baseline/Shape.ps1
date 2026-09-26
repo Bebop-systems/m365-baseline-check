@@ -1,6 +1,12 @@
 $script:MbcSeverities = @('high', 'medium', 'low', 'info')
-$script:MbcCheckMembers = @('id', 'title', 'request', 'select', 'extractor', 'operator', 'severity', 'why', 'caseSensitive', 'apiVersion')
-$script:MbcPresetMembers = @('schemaVersion', 'name', 'description', 'scopes', 'endpoints', 'checks')
+$script:MbcAreas = @('entra', 'exchange', 'intune', 'purview', 'defender', 'admin')
+$script:MbcSources = @('graph', 'exo', 'compliance')
+$script:MbcCmdletSources = @('exo', 'compliance')
+$script:MbcCheckMembers = @(
+    'id', 'title', 'area', 'location', 'source', 'request', 'parameters', 'select', 'operator', 'severity',
+    'labels', 'why', 'caseSensitive', 'apiVersion'
+)
+$script:MbcPresetMembers = @('schemaVersion', 'name', 'description', 'scopes', 'endpoints', 'cmdlets', 'checks')
 $script:MbcBaselineMembers = @('schemaVersion', 'name', 'version', 'description', 'preset', 'expected', 'seal')
 $script:MbcSealMembers = @('algorithm', 'digest', 'sealedVersion')
 
@@ -12,16 +18,79 @@ function Get-MbcCheckApiVersion {
     return 'v1.0'
 }
 
+function Get-MbcCheckSource {
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([Parameter(Mandatory)][System.Collections.IDictionary] $Check)
+    if ($Check.Contains('source')) { return [string]$Check['source'] }
+    return 'graph'
+}
+
+function Get-MbcCheckParameters {
+    # A check's cmdlet parameters as an ordered map; empty when it has none.
+    [CmdletBinding()]
+    [OutputType([System.Collections.Specialized.OrderedDictionary])]
+    param([Parameter(Mandatory)][System.Collections.IDictionary] $Check)
+    $map = [ordered]@{}
+    if ($Check.Contains('parameters') -and (Test-MbcIsDictionary $Check['parameters'])) {
+        foreach ($k in $Check['parameters'].Keys) { $map[[string]$k] = $Check['parameters'][$k] }
+    }
+    return $map
+}
+
+function Test-MbcCmdletName {
+    <#
+    .SYNOPSIS
+        True for a plain Get- cmdlet name: 'Get-', then letters and digits only. No wildcards, module
+        qualifiers, spaces or second verbs can pass.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([Parameter(Mandatory)][AllowEmptyString()][AllowNull()][string] $Name)
+    if ([string]::IsNullOrEmpty($Name) -or -not $Name.StartsWith('Get-', [StringComparison]::OrdinalIgnoreCase)) { return $false }
+    return (Test-MbcAllChars -Text $Name.Substring(4) -Letters -Digits)
+}
+
+function Test-MbcCmdletDeclared {
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([Parameter(Mandatory)][string] $Name, [Parameter(Mandatory)][string] $Source, [AllowNull()][object] $Cmdlets)
+    if (-not (Test-MbcIsDictionary $Cmdlets) -or -not $Cmdlets.Contains($Source) -or -not (Test-MbcIsList $Cmdlets[$Source])) { return $false }
+    foreach ($declared in $Cmdlets[$Source]) {
+        if ($declared -is [string] -and [string]::Equals($declared, $Name, [StringComparison]::OrdinalIgnoreCase)) { return $true }
+    }
+    return $false
+}
+
 function Test-MbcRequestDeclared {
     [CmdletBinding()]
     [OutputType([bool])]
     param([Parameter(Mandatory)][string] $Request, [Parameter(Mandatory)][AllowEmptyCollection()][string[]] $Endpoints)
-    $path = ($Request -split '\?', 2)[0]
+    $query = $Request.IndexOf('?')
+    $path = if ($query -ge 0) { $Request.Substring(0, $query) } else { $Request }
     foreach ($endpoint in $Endpoints) {
         $e = $endpoint.TrimEnd('/')
         if ($path -ieq $e -or $path.StartsWith("$e/", [StringComparison]::OrdinalIgnoreCase)) { return $true }
     }
     return $false
+}
+
+function Test-MbcGraphPathText {
+    # A Graph path: starts with '/', no scheme, no whitespace, and no '..' once decoded.
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([AllowNull()][object] $Text)
+    if ($Text -isnot [string] -or -not $Text.StartsWith('/') -or $Text.Contains('://') -or (Test-MbcHasWhiteSpace $Text)) { return $false }
+    return (-not ([uri]::UnescapeDataString($Text)).Contains('..'))
+}
+
+function Test-MbcCheckIdText {
+    # 1 to 64 letters, digits, dots, dashes or underscores, starting with a letter or digit.
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([AllowNull()][object] $Text)
+    if ($Text -isnot [string] -or $Text.Length -lt 1 -or $Text.Length -gt 64) { return $false }
+    return ((Test-MbcAsciiAlnum $Text[0]) -and (Test-MbcAllChars -Text $Text -Letters -Digits -Also '._-'))
 }
 
 function Test-MbcNonEmptyString {
@@ -47,49 +116,74 @@ function Add-MbcUnknownMemberProblem {
 function Test-MbcCheckShape {
     [CmdletBinding()]
     [OutputType([string[]])]
-    param([AllowNull()][object] $Check, [Parameter(Mandatory)][string] $Where, [AllowEmptyCollection()][string[]] $Endpoints = @())
+    param(
+        [AllowNull()][object] $Check,
+        [Parameter(Mandatory)][string] $Where,
+        [AllowEmptyCollection()][string[]] $Endpoints = @(),
+        [AllowNull()][object] $Cmdlets
+    )
     $p = [System.Collections.Generic.List[string]]::new()
     if (-not (Test-MbcIsDictionary $Check)) { $p.Add("${Where}: a check must be an object"); return , $p.ToArray() }
     Add-MbcUnknownMemberProblem -Object $Check -Allowed $script:MbcCheckMembers -Where $Where -Problems $p
 
-    $id = $Check['id']
-    if (-not ($id -is [string] -and $id -match '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$')) {
+    if (-not (Test-MbcCheckIdText $Check['id'])) {
         $p.Add("${Where}: id must be 1 to 64 letters, digits, dots, dashes or underscores")
     }
     if (-not ((Test-MbcNonEmptyString $Check['title']) -and $Check['title'].Length -le 200)) {
         $p.Add("${Where}: title must be text of 1 to 200 characters")
     }
-    $request = $Check['request']
-    # '%' itself is never refused here: a request may legitimately carry an encoded literal, such as
-    # %20 or %27, inside a path segment. What must be refused is traversal, including encoded traversal
-    # (%2e%2e), so the '..' test runs against the decoded path rather than the raw one.
-    if (-not ($request -is [string] -and $request -match '^/' -and $request -notmatch '://|\s')) {
-        $p.Add("${Where}: request must be a Graph path starting with '/', like /policies/authorizationPolicy")
+    if ($Check['area'] -notin $script:MbcAreas) { $p.Add("${Where}: area must be one of $($script:MbcAreas -join ', ')") }
+    if ($Check.Contains('location') -and -not ((Test-MbcNonEmptyString $Check['location']) -and $Check['location'].Length -le 200)) {
+        $p.Add("${Where}: location must be text of 1 to 200 characters")
     }
-    else {
-        $decodedRequest = [uri]::UnescapeDataString($request)
-        if ($decodedRequest -match '\.\.') {
+
+    $source = 'graph'
+    if ($Check.Contains('source')) {
+        if ($Check['source'] -cin $script:MbcSources) { $source = $Check['source'] }
+        else { $p.Add("${Where}: source must be graph, exo or compliance"); $source = $null }
+    }
+
+    $request = $Check['request']
+    if ($source -eq 'graph') {
+        # '%' itself is never refused: a request may legitimately carry an encoded literal, such as %20
+        # or %27, inside a path segment. Traversal is refused, including encoded traversal (%2e%2e),
+        # because the '..' test runs against the decoded path.
+        if (-not (Test-MbcGraphPathText $request)) {
             $p.Add("${Where}: request must be a Graph path starting with '/', like /policies/authorizationPolicy")
         }
-        elseif ($Endpoints.Count -gt 0 -and -not (Test-MbcRequestDeclared -Request $decodedRequest -Endpoints $Endpoints)) {
+        elseif (-not (Test-MbcRequestDeclared -Request ([uri]::UnescapeDataString($request)) -Endpoints $Endpoints)) {
             $p.Add("${Where}: request '$request' is not under a declared endpoint")
+        }
+        if ($Check.Contains('parameters')) { $p.Add("${Where}: parameters are for cmdlet sources only") }
+        if ($Check.Contains('apiVersion') -and $Check['apiVersion'] -cnotin 'v1.0', 'beta') { $p.Add("${Where}: apiVersion must be v1.0 or beta") }
+    }
+    elseif ($null -ne $source) {
+        if (-not (Test-MbcCmdletName -Name ([string]$request))) {
+            $p.Add("${Where}: request must be a Get- cmdlet name, like Get-OrganizationConfig")
+        }
+        elseif (-not (Test-MbcCmdletDeclared -Name $request -Source $source -Cmdlets $Cmdlets)) {
+            $p.Add("${Where}: '$request' is not declared under cmdlets.$source")
+        }
+        if ($Check.Contains('apiVersion')) { $p.Add("${Where}: apiVersion is for Graph checks only") }
+        if ($Check.Contains('parameters')) {
+            $parameters = $Check['parameters']
+            if (-not (Test-MbcIsDictionary $parameters)) { $p.Add("${Where}: parameters must be an object of name to value") }
+            else {
+                foreach ($name in $parameters.Keys) {
+                    if (-not (Test-MbcAllChars -Text ([string]$name) -Letters -Digits)) { $p.Add("${Where}: parameter name '$name' must be letters and digits") }
+                    $value = $parameters[$name]
+                    if (-not ($value -is [string] -or $value -is [bool] -or (Test-MbcIsWholeNumber $value))) {
+                        $p.Add("${Where}: parameter $name must be text, true or false, or a whole number")
+                    }
+                }
+            }
         }
     }
 
-    $hasSelect = $Check.Contains('select')
-    $hasExtractor = $Check.Contains('extractor')
-    if ($hasSelect -eq $hasExtractor) {
-        $p.Add("${Where}: give exactly one of select or extractor")
-    }
-    elseif ($hasSelect) {
-        if (-not (Test-MbcNonEmptyString $Check['select'])) { $p.Add("${Where}: select must be text") }
-        else {
-            try { [void](ConvertTo-MbcPathQuery -Select $Check['select']) }
-            catch { $p.Add("${Where}: $($_.Exception.Message)") }
-        }
-    }
-    elseif (-not ($Check['extractor'] -is [string] -and $Check['extractor'] -match '^extractors/[A-Za-z0-9._-]+\.ps1$')) {
-        $p.Add("${Where}: extractor must name a file like extractors/AUTH-009.ps1")
+    if (-not (Test-MbcNonEmptyString $Check['select'])) { $p.Add("${Where}: select must be text") }
+    else {
+        try { [void](ConvertTo-MbcPathQuery -Select $Check['select']) }
+        catch { $p.Add("${Where}: $($_.Exception.Message)") }
     }
 
     if ($Check['operator'] -notin $script:MbcOperators) {
@@ -98,10 +192,24 @@ function Test-MbcCheckShape {
     if ($Check['severity'] -notin $script:MbcSeverities) {
         $p.Add("${Where}: severity must be one of $($script:MbcSeverities -join ', ')")
     }
+    if ($Check.Contains('labels')) {
+        $labels = $Check['labels']
+        $ok = Test-MbcIsDictionary $labels
+        if ($ok) { foreach ($k in $labels.Keys) { if (-not (Test-MbcNonEmptyString $labels[$k])) { $ok = $false } } }
+        if (-not $ok) { $p.Add("${Where}: labels must map value text to display text, like { `"true`": `"On`" }") }
+    }
     if ($Check.Contains('why') -and -not ($Check['why'] -is [string])) { $p.Add("${Where}: why must be text") }
     if ($Check.Contains('caseSensitive') -and -not ($Check['caseSensitive'] -is [bool])) { $p.Add("${Where}: caseSensitive must be true or false") }
-    if ($Check.Contains('apiVersion') -and $Check['apiVersion'] -notin 'v1.0', 'beta') { $p.Add("${Where}: apiVersion must be v1.0 or beta") }
     return , $p.ToArray()
+}
+
+function Test-MbcEndpointText {
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([AllowNull()][object] $Text)
+    if ($Text -isnot [string] -or $Text.Length -lt 2 -or $Text[0] -cne '/' -or $Text[1] -ceq '/') { return $false }
+    if ($Text.Contains('?') -or (Test-MbcHasWhiteSpace $Text)) { return $false }
+    return (-not ([uri]::UnescapeDataString($Text)).Contains('..'))
 }
 
 function Test-MbcPresetShape {
@@ -117,7 +225,7 @@ function Test-MbcPresetShape {
     if ($Preset.Contains('description') -and -not ($Preset['description'] -is [string])) { $p.Add("${Where}: description must be text") }
 
     $scopes = $Preset['scopes']
-    if (-not ((Test-MbcIsList $scopes) -and $scopes.Count -gt 0)) { $p.Add("${Where}: scopes must be a non-empty list") }
+    if (-not (Test-MbcIsList $scopes)) { $p.Add("${Where}: scopes must be a list, which may be empty") }
     else {
         foreach ($s in $scopes) {
             if (-not (Test-MbcNonEmptyString $s)) { $p.Add("${Where}: every scope must be text") }
@@ -126,11 +234,26 @@ function Test-MbcPresetShape {
     }
 
     $endpoints = [System.Collections.Generic.List[string]]::new()
-    if (-not ((Test-MbcIsList $Preset['endpoints']) -and $Preset['endpoints'].Count -gt 0)) { $p.Add("${Where}: endpoints must be a non-empty list") }
+    if (-not (Test-MbcIsList $Preset['endpoints'])) { $p.Add("${Where}: endpoints must be a list, which may be empty") }
     else {
         foreach ($e in $Preset['endpoints']) {
-            if ($e -is [string] -and $e -match '^/[^\s?/][^\s?]*$' -and $e -notmatch '\.\.') { $endpoints.Add($e) }
+            if (Test-MbcEndpointText $e) { $endpoints.Add($e) }
             else { $p.Add("${Where}: endpoint '$e' must be a Graph path starting with '/', with no query string") }
+        }
+    }
+
+    $cmdlets = $null
+    if ($Preset.Contains('cmdlets')) {
+        $cmdlets = $Preset['cmdlets']
+        if (-not (Test-MbcIsDictionary $cmdlets)) { $p.Add("${Where}: cmdlets must be an object keyed by source (exo, compliance)") }
+        else {
+            foreach ($source in $cmdlets.Keys) {
+                if ($source -cnotin $script:MbcCmdletSources) { $p.Add("cmdlets: unknown source '$source'; use exo or compliance"); continue }
+                if (-not (Test-MbcIsList $cmdlets[$source])) { $p.Add("cmdlets.${source}: must be a list of cmdlet names"); continue }
+                foreach ($name in $cmdlets[$source]) {
+                    if (-not (Test-MbcCmdletName -Name ([string]$name))) { $p.Add("cmdlets.${source}: '$name' must be a Get- cmdlet") }
+                }
+            }
         }
     }
 
@@ -141,7 +264,7 @@ function Test-MbcPresetShape {
         for ($i = 0; $i -lt $checks.Count; $i++) {
             $hasId = (Test-MbcIsDictionary $checks[$i]) -and $checks[$i]['id'] -is [string]
             $label = if ($hasId) { "check $($checks[$i]['id'])" } else { "check #$($i + 1)" }
-            foreach ($problem in (Test-MbcCheckShape -Check $checks[$i] -Where $label -Endpoints $endpoints.ToArray())) { $p.Add($problem) }
+            foreach ($problem in (Test-MbcCheckShape -Check $checks[$i] -Where $label -Endpoints $endpoints.ToArray() -Cmdlets $cmdlets)) { $p.Add($problem) }
             if ($hasId) {
                 $key = $checks[$i]['id'].ToLowerInvariant()
                 if ($seen.ContainsKey($key)) { $p.Add("check $($checks[$i]['id']): this id is used more than once") }
@@ -167,7 +290,8 @@ function Get-MbcExpectedMisfit {
     }
     elseif ($Operator -eq 'matches') {
         if ($Value -isnot [string]) { return 'expects a regular expression as text' }
-        try { [void][regex]::new($Value) } catch { return 'has an invalid regular expression' }
+        # The operator itself is the one place a pattern is compiled, so ask it.
+        if ((Compare-MbcValue -Actual '' -Operator 'matches' -Expected $Value).Cause -eq 'invalid pattern') { return 'has an invalid regular expression' }
     }
     return $null
 }
@@ -203,7 +327,7 @@ function Test-MbcBaselineShape {
             if (-not $expected.Contains($id)) { $p.Add("check ${id}: has no expected value"); continue }
             # A missing or invalid operator is already reported by Test-MbcPresetShape above. Casting it
             # to [string] for Get-MbcExpectedMisfit would pass an empty string to a mandatory [string]
-            # parameter, which PowerShell refuses to bind — so skip rather than let that throw.
+            # parameter, which PowerShell refuses to bind, so skip rather than let that throw.
             if ($check['operator'] -notin $script:MbcOperators) { continue }
             $misfit = Get-MbcExpectedMisfit -Operator ([string]$check['operator']) -Value $expected[$id]
             if ($misfit) { $p.Add("check ${id}: $($check['operator']) $misfit") }
@@ -216,7 +340,7 @@ function Test-MbcBaselineShape {
         else {
             Add-MbcUnknownMemberProblem -Object $seal -Allowed $script:MbcSealMembers -Where 'seal' -Problems $p
             if ($seal['algorithm'] -cne 'SHA-256') { $p.Add('seal: algorithm must be SHA-256') }
-            if (-not ($seal['digest'] -is [string] -and $seal['digest'] -cmatch '^[0-9a-f]{64}$')) { $p.Add('seal: digest must be 64 lowercase hex characters') }
+            if (-not (Test-MbcLowerHex -Text $seal['digest'] -MinLength 64 -MaxLength 64)) { $p.Add('seal: digest must be 64 lowercase hex characters') }
             if (-not ((Test-MbcIsWholeNumber $seal['sealedVersion']) -and $seal['sealedVersion'] -ge 1)) { $p.Add('seal: sealedVersion must be a whole number of 1 or more') }
         }
     }
