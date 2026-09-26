@@ -1,0 +1,6 @@
+testResults.xml
+*.locked
+/out/
+# Internal presets and baselines never live in this repository. See CLAUDE.md.
+/baselines/
+.superpowers/
