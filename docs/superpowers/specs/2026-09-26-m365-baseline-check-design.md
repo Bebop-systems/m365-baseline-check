@@ -2,7 +2,7 @@
 
 **Status:** revision 2, approved in conversation on 2026-09-26. It replaces revision 1, and all
 remaining implementation follows this revision. Revision 1's plan was built through its Task 6; the
-branch state is described in [`../HANDOFF.md`](../HANDOFF.md).
+remaining work is planned in [`../plans/2026-09-26-m365-baseline-check-rev2.md`](../plans/2026-09-26-m365-baseline-check-rev2.md).
 
 **What changed in revision 2:**
 - **Sources:** checks can read Exchange Online and Security & Compliance PowerShell as well as Graph (§6).
@@ -108,7 +108,7 @@ These are not preferences. A change that seems to need breaking one is the wrong
 
 ## 4. Layout
 
-Revision 1 already built the files marked ✓. See `HANDOFF.md` for how far each goes.
+Revision 1 already built the files marked ✓.
 
 ```
 M365BaselineCheck.psd1 / .psm1         ✓ loader

@@ -1,6 +1,6 @@
 # M365 Baseline Check Implementation Plan
 
-> **Superseded from Task 7 onward.** Tasks 1–6 are built. Spec revision 2 replaced the design, and the rest of this plan is raw material only: see [`../HANDOFF.md`](../HANDOFF.md).
+> **Superseded from Task 7 onward.** Tasks 1–6 are built. Spec revision 2 replaced the design, and the rest of this plan is raw material only: see [the revision 2 plan](2026-09-26-m365-baseline-check-rev2.md).
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

@@ -1,0 +1,31 @@
+{
+  "_about": "Values the scrub gate lets through. Every GUID here is either this module's own manifest GUID or a documented Microsoft well-known ID; synthetic GUIDs start 00000000-0000-4000-8000- and need no entry.",
+  "guids": [
+    "d78f3c36-d409-45d9-8d87-358c2307d62d",
+    "f8cdef31-a31e-4b4a-93e4-5f571e91255a",
+    "72f988bf-86f1-41af-91ab-2d7cd011db47",
+    "00000003-0000-0000-c000-000000000000",
+    "a0b1b346-4d3e-4e8b-98f8-753987be4970",
+    "10dae51f-b6af-4016-8d66-8c2a99b929b3",
+    "2af84b1e-32c8-42b7-82bc-daa82404023b",
+    "62e90394-69f5-4237-9190-012177145e10",
+    "f2ef992c-3afb-46b9-b7cf-a126ee74c451",
+    "5d6b6bb7-de71-4623-b4af-96380a352509",
+    "4a5d8f65-41da-4de4-8968-e035b65339cf",
+    "88d8e3e3-8f55-4a1e-953a-9b9898b8876b",
+    "790c1fb9-7f7d-4f88-86a1-ef1f95c05c1b",
+    "75934031-6c7e-415a-99d7-48dbd49e875e"
+  ],
+  "_guids": "Module manifest; Microsoft Services tenant; Microsoft tenant; Microsoft Graph app ID; guest roles (member-equivalent, limited, restricted); Global Administrator; Global Reader; Security Reader; Reports Reader; Directory Readers; Message Center Reader; Usage Summary Reports Reader.",
+  "emails": ["noreply@anthropic.com"],
+  "hosts": [
+    "http://www.apache.org", "https://www.apache.org", "https://example.com",
+    "https://graph.microsoft.com", "https://outlook.office365.com", "https://ps.compliance.protection.outlook.com",
+    "https://learn.microsoft.com", "https://github.com", "https://www.powershellgallery.com", "https://claude.com"
+  ],
+  "domains": [
+    "anthropic.com", "apache.org", "www.apache.org", "example.com", "example.net", "example.org", "example.onmicrosoft.com", "onmicrosoft.com",
+    "graph.microsoft.com", "learn.microsoft.com", "outlook.office365.com", "ps.compliance.protection.outlook.com",
+    "github.com", "www.powershellgallery.com", "claude.com", "system.io", "system.net"
+  ]
+}

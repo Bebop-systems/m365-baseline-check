@@ -51,7 +51,8 @@ function ConvertFrom-MbcTeamKeyText {
         (Test-MbcAllChars -Text $parts[3] -Letters -Digits -Also '_-')
     if (-not $shaped) { throw "That isn't a team key. It should look like mbc-key:1:<8 hex characters>:<43 characters>." }
     $bytes = ConvertFrom-MbcBase64Url -Text $parts[3]
-    if ($bytes.Length -ne 32 -or (Get-MbcKeyId -KeyBytes $bytes) -cne $parts[2]) {
+    # Canonical encoding only: text whose spare bits differ would decode to the same key and hide a typo.
+    if ($bytes.Length -ne 32 -or (ConvertTo-MbcBase64Url -Bytes $bytes) -cne $parts[3] -or (Get-MbcKeyId -KeyBytes $bytes) -cne $parts[2]) {
         throw "That key's ID doesn't match its contents; it was probably mistyped or cut short."
     }
     return [pscustomobject]@{ KeyId = $parts[2]; Bytes = $bytes }
