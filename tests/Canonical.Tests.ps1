@@ -19,6 +19,9 @@ InModuleScope M365BaselineCheck {
         It 'rejects duplicate keys' {
             { ConvertFrom-MbcJson -Json '{"a":1,"a":2}' } | Should -Throw '*Duplicate key*'
         }
+        It 'rejects keys that differ only in letter case' {
+            { ConvertFrom-MbcJson -Json '{"a":1,"A":2}' } | Should -Throw '*differ only in letter case*'
+        }
         It 'rejects invalid JSON with a readable message' {
             { ConvertFrom-MbcJson -Json '{"a":' } | Should -Throw '*Not valid JSON*'
         }

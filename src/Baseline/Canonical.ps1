@@ -40,7 +40,13 @@ function ConvertFrom-MbcJsonElement {
         'Object' {
             $map = [ordered]@{}
             foreach ($property in $Element.EnumerateObject()) {
-                if ($map.Contains($property.Name)) { throw "Duplicate key '$($property.Name)' at $Path." }
+                if ($map.Contains($property.Name)) {
+                    $existing = @($map.Keys) | Where-Object { $_ -ieq $property.Name } | Select-Object -First 1
+                    if ($existing -cne $property.Name) {
+                        throw "Keys '$existing' and '$($property.Name)' at $Path differ only in letter case; baselines and responses may not hold both."
+                    }
+                    throw "Duplicate key '$($property.Name)' at $Path."
+                }
                 $map[$property.Name] = ConvertFrom-MbcJsonElement -Element $property.Value -Path "$Path.$($property.Name)" -AllowFloat:$AllowFloat
             }
             return $map
