@@ -1,5 +1,7 @@
 # M365 Baseline Check Implementation Plan
 
+> **Superseded from Task 7 onward.** Tasks 1–6 are built. Spec revision 2 replaced the design, and the rest of this plan is raw material only: see [`../HANDOFF.md`](../HANDOFF.md).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build a small, read-only PowerShell 7 module that checks a Microsoft 365 tenant against a sealed baseline, from a plain-PowerShell TUI or non-interactively. It writes verbose logs, concise sealed results, optional team-key encryption, and a redacted summary.
