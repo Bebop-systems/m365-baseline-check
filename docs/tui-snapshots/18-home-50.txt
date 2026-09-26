@@ -1,0 +1,20 @@
+╭─ M365 Baseline Check ───────────────── v0.1.0 ─╮
+│ Tenant    Example Ltd · exam…  admin@example.… │
+│ Sessions  Graph ·…                             │
+│ Baseline  Example tenant hygiene · …  sealed ✓ │
+╰────────────────────────────────────────────────╯
+
+  ▸ Run checks                                 r
+    Choose a baseline…                         b
+    Last results                               l
+    App inventory                              i
+    Open a locked result…                      o
+    Build or seal a baseline…                  s
+    Sign in / switch account                   c
+    Read the app inventory with each run: …    t
+    Quit                                       q
+
+  Last results  13 met, 5 not, 2 unverifiable   ·…
+
+
+  ↑↓ move   Enter select   r run   b baseline

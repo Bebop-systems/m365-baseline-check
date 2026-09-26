@@ -1,0 +1,32 @@
+ M365 Baseline Check · App ────────────────────────────── Example tenant hygiene v1 · 166cee0ba798
+
+  Handy PDF Signer
+
+  Kind       Third-party enterprise app
+  Publisher  Handy Apps (not verified)
+  App ID     00000000-0000-4000-8000-000000000404
+  Status     Enabled for sign-in · assignment not required
+
+  Delegated, user consent
+    Microsoft Graph       Files.ReadWrite.All, User.Read (3 users)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  ↑↓ previous/next   PgUp/PgDn scroll   Esc back   ? help

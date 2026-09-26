@@ -59,7 +59,10 @@ function Invoke-BaselineCheck {
         $Connection = Connect-MbcSources -Preset $preset -Log $log
         $Fetch = { param($Item) Invoke-MbcSourceFetch -Item $Item -Preset $preset -Connection $Connection -Log $log }
     }
-    if ($Connection -and $Connection.PSObject.Properties['Disclosure']) { foreach ($d in $Connection.Disclosure) { & $say (ConvertTo-MbcGlyphText $d $g) } }
+    if ($Connection -and $Connection.PSObject.Properties['Disclosure']) {
+        Write-MbcLog -Log $log -EventName 'disclosure' -Data @{ lines = @($Connection.Disclosure) }
+        foreach ($d in $Connection.Disclosure) { & $say (ConvertTo-MbcGlyphText $d $g) }
+    }
 
     if ($SkipAppInventory) { $Inventory = { param($OnProgress) $null = $OnProgress; New-MbcSkippedInventory } }
     elseif (-not $Inventory) {
@@ -90,14 +93,21 @@ function Invoke-BaselineCheck {
         & $say "Written to $(Join-Path $root 'results'): $written"
     }
     & $say "Log: $($log.Path)"
-    return [pscustomobject]@{
-        PSTypeName = 'Mbc.RunSummary'
-        Counts     = $run.Counts
-        Results    = $view.Results
-        Inventory  = $view.Inventory
-        Files      = $files
-        Baseline   = (Get-MbcBaselineIdentity -Baseline $b)
-        LogPath    = $log.Path
-        Document   = $document
+    $summary = [pscustomobject]@{
+        PSTypeName  = 'Mbc.RunSummary'
+        Summary     = '{0} met, {1} not, {2} unverifiable' -f $run.Counts.Pass, $run.Counts.Fail, $run.Counts.Error
+        Fingerprint = $b.Fingerprint
+        Written     = if ($files) { [string[]]@($files.Locked, $files.Json, $files.Csv, $files.Apps, $files.Report, $files.Summary | Where-Object { $_ }) } else { @() }
+        LogPath     = $log.Path
+        Counts      = $run.Counts
+        Results     = $view.Results
+        Inventory   = $view.Inventory
+        Files       = $files
+        Baseline    = (Get-MbcBaselineIdentity -Baseline $b)
+        Document    = $document
     }
+    # Shown compactly at the prompt; everything else is still on the object.
+    $display = [System.Management.Automation.PSPropertySet]::new('DefaultDisplayPropertySet', [string[]]@('Summary', 'Fingerprint', 'Written', 'LogPath'))
+    $summary | Add-Member -MemberType MemberSet -Name PSStandardMembers -Value ([System.Management.Automation.PSMemberInfo[]]@($display))
+    return $summary
 }

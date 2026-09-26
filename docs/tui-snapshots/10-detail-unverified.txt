@@ -1,0 +1,32 @@
+ M365 Baseline Check · Check ──────────────────────────── Example tenant hygiene v1 · 166cee0ba798
+
+  ? Unverifiable  PUR-002  medium severity · Purview
+  Data loss prevention policies that are on
+
+  Where      Solutions › Data loss prevention › Policies
+  Expected   at least 1
+  Actual     not read
+  Cause      not connected (There's no compliance session.)
+  Next       This source's session did not connect. Sign in again and rerun.
+  Read       Get-DlpCompliancePolicy
+  Path       value[?Mode=='Enable'].Name
+  Compared   countAtLeast
+  Source     Security & Compliance
+  Why        Policies in simulation or off state enforce nothing.
+  Log        run-20260926T141200Z-d3m0aa.jsonl, check PUR-002
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  ↑↓ previous/next   PgUp/PgDn scroll   Esc back   ? help

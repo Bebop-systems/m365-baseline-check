@@ -1,0 +1,32 @@
+ M365 Baseline Check · Choose a baseline ──────────────── Example tenant hygiene v1 · 166cee0ba798
+
+  ▸ core-tenant.json
+    core-tenant-v4-draft.json
+    example-tenant-hygiene.baseline.json
+
+  ~/M365BaselineCheck/baselines/core-tenant.json
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  ↑↓ move   Enter open   p type a path   Esc back

@@ -1,0 +1,24 @@
+ M365 Baseline Check - Results - Example tenant hygiene v1 - 166cee0b~
+
+  13 met, 5 not, 2 unverifiable   - this run    Showing: needs attention
+
+> v Entra  3 met - 3 not
+    x Not met       Users can register applications            Yes -> No
+    x Not met       Guest user access restric~  Guest use~ -> one of Gu~
+    x Not met       Conditional Access policies that a~  2 -> at least 3
+  v Exchange  3 met - 1 not
+    x Not met       Turn off SMTP AUTH protocol~  Not checked -> Checked
+  v Intune  2 met - 1 unverifiable
+    ? Unverifiable  Device compliance policies        permission missing
+  v Purview  1 met - 1 unverifiable
+    ? Unverifiable  Data loss prevention policies that a~  not connected
+  v Defender  3 met - 1 not
+    x Not met       Automatic forwarding rules  Automatic~ -> Off - For~
+  > Microsoft 365 admin  1 met
+
+
+
+
+
+
+  Up/Dn move   Enter open   f not met   e unverifiable   a all

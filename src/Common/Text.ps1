@@ -22,7 +22,7 @@ function Get-MbcGlyphs {
     if ($Unicode) {
         return @{
             Unicode = $true; Pass = '✓'; Fail = '✗'; Error = '?'; Pointer = '▸'; Ellipsis = '…'; Dot = '·'; Arrow = '→'; Seal = '✓'
-            H = '─'; V = '│'; TL = '╭'; TR = '╮'; BL = '╰'; BR = '╯'; Track = '─'; Cursor = '▏'; Bullet = '•'; Collapsed = '▸'; Expanded = '▾'
+            H = '─'; V = '│'; TL = '╭'; TR = '╮'; BL = '╰'; BR = '╯'; Track = '─'; Cursor = '▏'; Bullet = '•'; Collapsed = '▹'; Expanded = '▿'
             Spinner = @('⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏')
             Bar = @('', '▏', '▎', '▍', '▌', '▋', '▊', '▉', '█')
         }

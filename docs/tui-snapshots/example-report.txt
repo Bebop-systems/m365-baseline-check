@@ -1,0 +1,216 @@
+M365 Baseline Check report                                                               tool v0.1.0
+────────────────────────────────────────────────────────────────────────────────────────────────────
+Baseline   Example tenant hygiene · v1 · 166cee0ba798
+Digest     SHA-256 166cee0ba798909a07bad71bcf9baefdb55a0235221f79beec17d2686a49a2d0
+Tenant     Example Ltd (example.com)
+Run        2026-09-26 21:27 UTC · run 20260926T141200Z-d3m0aa
+Sign-in    Signed in as admin@example.onmicrosoft.com to Example Ltd
+           (00000000-0000-4000-8000-000000000001).
+Sign-in    Directory roles: Global Administrator.
+Sign-in    Graph scopes granted: Application.Read.All, Directory.Read.All, Policy.Read.All,
+           User.Read, Directory.ReadWrite.All (write).
+Sign-in    Sessions: Graph, Exchange Online.
+Sign-in    Security & Compliance: not connected (User canceled authentication.).
+Sign-in    Read-only by construction: GET-only Graph, Get- cmdlets only.
+
+Results   13 met, 5 not, 2 unverifiable
+
+  Entra  3 met · 3 not
+    ✗ Not met       Users can register applications                                         Yes → No
+    ✓ Met           Users can create security groups
+    ✓ Met           Guest invite restrictions
+    ✗ Not met       Guest user access restrictions  Guest users have limi… → one of Guest user acce…
+    ✓ Met           Security defaults
+    ✗ Not met       Conditional Access policies that are on                           2 → at least 3
+
+  Exchange  3 met · 1 not
+    ✓ Met           Mailbox auditing on by default
+    ✓ Met           Modern authentication for Outlook
+    ✗ Not met       Turn off SMTP AUTH protocol for your organization          Not checked → Checked
+    ✓ Met           External sender identification in Outlook
+
+  Intune  2 met · 1 unverifiable
+    ✓ Met           Mark devices with no compliance policy assigned as
+    ✓ Met           Compliance status validity period (days)
+    ? Unverifiable  Device compliance policies                                    permission missing
+
+  Purview  1 met · 1 unverifiable
+    ✓ Met           Record user and admin activity
+    ? Unverifiable  Data loss prevention policies that are on                          not connected
+
+  Defender  3 met · 1 not
+    ✓ Met           Enable the common attachments filter
+    ✓ Met           Enable zero-hour auto purge for malware
+    ✓ Met           Enable mailbox intelligence
+    ✗ Not met       Automatic forwarding rules  Automatic - System-cont… → Off - Forwarding is disa…
+
+  Microsoft 365 admin  1 met
+    ✓ Met           Days before passwords expire
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+Needs attention
+
+  ✗ Not met  ENTRA-001  medium severity · Entra
+  Users can register applications
+
+  Where      Identity › Users › User settings
+  Expected   No
+  Actual     Yes
+  Read       GET v1.0 /policies/authorizationPolicy
+  Path       defaultUserRolePermissions.allowedToCreateApps
+  Compared   equals
+  Source     Graph
+  Why        Registering an application creates an identity that can be granted access; it is an
+             administrative decision.
+  Log        run-20260926T141200Z-d3m0aa.jsonl, check ENTRA-001
+
+  ✗ Not met  ENTRA-004  medium severity · Entra
+  Guest user access restrictions
+
+  Where      Identity › External Identities › External collaboration settings
+  Expected   one of Guest user access is restricted to properties and memberships of their own
+             directory objects
+  Actual     Guest users have limited access to properties and memberships of directory objects
+  Read       GET v1.0 /policies/authorizationPolicy
+  Path       guestUserRoleId
+  Compared   in
+  Source     Graph
+  Why        Guests should not be able to enumerate the directory.
+  Log        run-20260926T141200Z-d3m0aa.jsonl, check ENTRA-004
+
+  ✗ Not met  ENTRA-006  high severity · Entra
+  Conditional Access policies that are on
+
+  Where      Protection › Conditional Access › Policies
+  Expected   at least 3
+  Actual     2 (Require MFA for all users, Block legacy authentication)
+  Read       GET v1.0 /identity/conditionalAccess/policies
+  Path       value[?state=='enabled'].displayName
+  Compared   countAtLeast
+  Source     Graph
+  Why        Policies in report-only or off state enforce nothing.
+  Log        run-20260926T141200Z-d3m0aa.jsonl, check ENTRA-006
+
+  ? Unverifiable  INTUNE-003  medium severity · Intune
+  Device compliance policies
+
+  Where      Devices › Compliance › Policies
+  Expected   at least 1
+  Actual     not read
+  Cause      permission missing (HTTP 403)
+  Next       The account, or the scopes it was granted, cannot read this. The sign-in line shows
+             what was granted.
+  Read       GET v1.0 /deviceManagement/deviceCompliancePolicies
+  Path       value[*].displayName
+  Compared   countAtLeast
+  Source     Graph
+  Why        Conditional Access can only require compliant devices if compliance is defined.
+  Log        run-20260926T141200Z-d3m0aa.jsonl, check INTUNE-003
+
+  ✗ Not met  EXO-003  medium severity · Exchange
+  Turn off SMTP AUTH protocol for your organization
+
+  Where      Settings › Mail flow
+  Expected   Checked
+  Actual     Not checked
+  Read       Get-TransportConfig
+  Path       value[0].SmtpClientAuthenticationDisabled
+  Compared   equals
+  Source     Exchange Online
+  Why        Authenticated SMTP submission uses basic authentication; turn it on only for the
+             mailboxes that need it.
+  Log        run-20260926T141200Z-d3m0aa.jsonl, check EXO-003
+
+  ✗ Not met  DEF-004  high severity · Defender
+  Automatic forwarding rules
+
+  Where      Email & collaboration › Policies & rules › Threat policies › Anti-spam › Anti-spam
+             outbound policy (Default)
+  Expected   Off - Forwarding is disabled
+  Actual     Automatic - System-controlled
+  Read       Get-HostedOutboundSpamFilterPolicy -Identity 'Default'
+  Path       value[0].AutoForwardingMode
+  Compared   equals
+  Source     Exchange Online
+  Why        Automatic forwarding to outside addresses is a common way data leaves after an account
+             is compromised.
+  Log        run-20260926T141200Z-d3m0aa.jsonl, check DEF-004
+
+  ? Unverifiable  PUR-002  medium severity · Purview
+  Data loss prevention policies that are on
+
+  Where      Solutions › Data loss prevention › Policies
+  Expected   at least 1
+  Actual     not read
+  Cause      not connected (There's no compliance session.)
+  Next       This source's session did not connect. Sign in again and rerun.
+  Read       Get-DlpCompliancePolicy
+  Path       value[?Mode=='Enable'].Name
+  Compared   countAtLeast
+  Source     Security & Compliance
+  Why        Policies in simulation or off state enforce nothing.
+  Log        run-20260926T141200Z-d3m0aa.jsonl, check PUR-002
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+App inventory
+  3 third-party, 2 own registrations. Not listed: 2 Microsoft apps, 1 other service principal.
+
+    App                               Publisher             Verified  Consents
+    Backup Vault Connector            Tailspin Backup       ✓ yes     2 app
+    Handy PDF Signer                  Handy Apps            no        2 user (3 people)
+    Northwind Calendar Sync           Northwind Software    ✓ yes     3 admin
+    HR Reporting (own)                Example Ltd           no        1 admin · 1 app
+    Intranet Search (test) (own)      example.com           no        no consents
+
+  Backup Vault Connector
+
+  Kind       Third-party enterprise app
+  Publisher  Tailspin Backup (verified publisher)
+  App ID     00000000-0000-4000-8000-000000000405
+  Status     Enabled for sign-in · assignment not required
+
+  Application permissions
+    Microsoft Graph       Sites.Read.All
+    Office 365 Exchange…  full_access_as_app
+
+  Handy PDF Signer
+
+  Kind       Third-party enterprise app
+  Publisher  Handy Apps (not verified)
+  App ID     00000000-0000-4000-8000-000000000404
+  Status     Enabled for sign-in · assignment not required
+
+  Delegated, user consent
+    Microsoft Graph       Files.ReadWrite.All, User.Read (3 users)
+
+  Northwind Calendar Sync
+
+  Kind       Third-party enterprise app
+  Publisher  Northwind Software (verified publisher)
+  App ID     00000000-0000-4000-8000-000000000403
+  Status     Enabled for sign-in · assignment required
+
+  Delegated, admin consent for all users
+    Microsoft Graph       Calendars.ReadWrite, offline_access, User.Read
+
+  HR Reporting
+
+  Kind       Registered in this tenant
+  Publisher  Example Ltd (not verified)
+  App ID     00000000-0000-4000-8000-000000000406
+  Status     Enabled for sign-in · assignment required
+
+  Delegated, admin consent for all users
+    Microsoft Graph       User.Read
+
+  Application permissions
+    Microsoft Graph       User.Read.All
+
+  Intranet Search (test)
+
+  Kind       Registered in this tenant
+  Publisher  example.com (not verified)
+  App ID     00000000-0000-4000-8000-000000000408
+  Status     No enterprise app in this tenant
+
+  No consents or application permissions.

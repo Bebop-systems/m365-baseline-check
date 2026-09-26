@@ -1,0 +1,32 @@
+ M365 Baseline Check · Build or seal ──────────────────── Example tenant hygiene v1 · 166cee0ba798
+
+  ▸ Seal a baseline file…                                                                        s
+    Draft a baseline from this tenant…                                                           d
+    Generate a team key                                                                          n
+    Back                                                                                       Esc
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  ↑↓ move   Enter select   Esc back   ? help

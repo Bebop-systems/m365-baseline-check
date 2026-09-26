@@ -1,0 +1,381 @@
+{
+  "schemaVersion": 1,
+  "name": "Example tenant hygiene",
+  "version": 1,
+  "description": "The example preset with expected values filled in, sealed. For trying the tool out; copy it into a private repository before changing it.",
+  "preset": {
+    "schemaVersion": 1,
+    "name": "Example tenant hygiene",
+    "description": "Generic, widely published Microsoft 365 settings across the admin centres. An example to copy from, not a recommendation for any particular organisation.",
+    "scopes": [
+      "Policy.Read.All",
+      "Domain.Read.All",
+      "DeviceManagementServiceConfig.Read.All",
+      "DeviceManagementConfiguration.Read.All"
+    ],
+    "endpoints": [
+      "/policies/authorizationPolicy",
+      "/policies/identitySecurityDefaultsEnforcementPolicy",
+      "/identity/conditionalAccess/policies",
+      "/domains",
+      "/deviceManagement"
+    ],
+    "cmdlets": {
+      "exo": [
+        "Get-OrganizationConfig",
+        "Get-TransportConfig",
+        "Get-ExternalInOutlook",
+        "Get-AdminAuditLogConfig",
+        "Get-MalwareFilterPolicy",
+        "Get-AntiPhishPolicy",
+        "Get-HostedOutboundSpamFilterPolicy"
+      ],
+      "compliance": [
+        "Get-DlpCompliancePolicy"
+      ]
+    },
+    "checks": [
+      {
+        "id": "ENTRA-001",
+        "title": "Users can register applications",
+        "area": "entra",
+        "location": "Identity › Users › User settings",
+        "request": "/policies/authorizationPolicy",
+        "select": "defaultUserRolePermissions.allowedToCreateApps",
+        "operator": "equals",
+        "severity": "medium",
+        "labels": {
+          "true": "Yes",
+          "false": "No"
+        },
+        "why": "Registering an application creates an identity that can be granted access; it is an administrative decision."
+      },
+      {
+        "id": "ENTRA-002",
+        "title": "Users can create security groups",
+        "area": "entra",
+        "location": "Identity › Groups › All groups › General",
+        "request": "/policies/authorizationPolicy",
+        "select": "defaultUserRolePermissions.allowedToCreateSecurityGroups",
+        "operator": "equals",
+        "severity": "low",
+        "labels": {
+          "true": "Yes",
+          "false": "No"
+        },
+        "why": "Security groups are used to grant access, so who creates them should be deliberate."
+      },
+      {
+        "id": "ENTRA-003",
+        "title": "Guest invite restrictions",
+        "area": "entra",
+        "location": "Identity › External Identities › External collaboration settings",
+        "request": "/policies/authorizationPolicy",
+        "select": "allowInvitesFrom",
+        "operator": "in",
+        "severity": "medium",
+        "labels": {
+          "\"everyone\"": "Anyone in the organization can invite guest users",
+          "\"adminsGuestInvitersAndAllMembers\"": "Member users and users assigned to specific admin roles can invite",
+          "\"adminsAndGuestInviters\"": "Only users assigned to specific admin roles can invite guest users",
+          "\"none\"": "No one in the organization can invite guest users"
+        },
+        "why": "Invitations bring outside accounts into the directory."
+      },
+      {
+        "id": "ENTRA-004",
+        "title": "Guest user access restrictions",
+        "area": "entra",
+        "location": "Identity › External Identities › External collaboration settings",
+        "request": "/policies/authorizationPolicy",
+        "select": "guestUserRoleId",
+        "operator": "in",
+        "severity": "medium",
+        "labels": {
+          "\"a0b1b346-4d3e-4e8b-98f8-753987be4970\"": "Guest users have the same access as members",
+          "\"10dae51f-b6af-4016-8d66-8c2a99b929b3\"": "Guest users have limited access to properties and memberships of directory objects",
+          "\"2af84b1e-32c8-42b7-82bc-daa82404023b\"": "Guest user access is restricted to properties and memberships of their own directory objects"
+        },
+        "why": "Guests should not be able to enumerate the directory."
+      },
+      {
+        "id": "ENTRA-005",
+        "title": "Security defaults",
+        "area": "entra",
+        "location": "Identity › Overview › Properties › Manage security defaults",
+        "request": "/policies/identitySecurityDefaultsEnforcementPolicy",
+        "select": "isEnabled",
+        "operator": "equals",
+        "severity": "high",
+        "labels": {
+          "true": "Enabled",
+          "false": "Disabled"
+        },
+        "why": "Security defaults and Conditional Access are alternatives; which one is expected depends on licensing."
+      },
+      {
+        "id": "ENTRA-006",
+        "title": "Conditional Access policies that are on",
+        "area": "entra",
+        "location": "Protection › Conditional Access › Policies",
+        "request": "/identity/conditionalAccess/policies",
+        "select": "value[?state=='enabled'].displayName",
+        "operator": "countAtLeast",
+        "severity": "high",
+        "why": "Policies in report-only or off state enforce nothing."
+      },
+      {
+        "id": "ADMIN-001",
+        "title": "Days before passwords expire",
+        "area": "admin",
+        "location": "Settings › Org settings › Security & privacy › Password expiration policy",
+        "request": "/domains",
+        "select": "value[*].passwordValidityPeriodInDays",
+        "operator": "subsetOf",
+        "severity": "low",
+        "labels": {
+          "2147483647": "Never expire"
+        },
+        "why": "Current guidance is that passwords should not expire on a schedule."
+      },
+      {
+        "id": "INTUNE-001",
+        "title": "Mark devices with no compliance policy assigned as",
+        "area": "intune",
+        "location": "Devices › Compliance › Compliance settings",
+        "request": "/deviceManagement",
+        "select": "settings.secureByDefault",
+        "operator": "equals",
+        "severity": "high",
+        "labels": {
+          "true": "Not compliant",
+          "false": "Compliant"
+        },
+        "why": "A device nobody has assessed should not count as compliant."
+      },
+      {
+        "id": "INTUNE-002",
+        "title": "Compliance status validity period (days)",
+        "area": "intune",
+        "location": "Devices › Compliance › Compliance settings",
+        "request": "/deviceManagement",
+        "select": "settings.deviceComplianceCheckinThresholdDays",
+        "operator": "equals",
+        "severity": "low",
+        "why": "A device that stops checking in should lose its compliant status in good time."
+      },
+      {
+        "id": "INTUNE-003",
+        "title": "Device compliance policies",
+        "area": "intune",
+        "location": "Devices › Compliance › Policies",
+        "request": "/deviceManagement/deviceCompliancePolicies",
+        "select": "value[*].displayName",
+        "operator": "countAtLeast",
+        "severity": "medium",
+        "why": "Conditional Access can only require compliant devices if compliance is defined."
+      },
+      {
+        "id": "EXO-001",
+        "title": "Mailbox auditing on by default",
+        "area": "exchange",
+        "source": "exo",
+        "request": "Get-OrganizationConfig",
+        "select": "value[0].AuditDisabled",
+        "operator": "equals",
+        "severity": "high",
+        "labels": {
+          "false": "On",
+          "true": "Off"
+        },
+        "why": "Mailbox audit records are how access to a mailbox is reconstructed afterwards."
+      },
+      {
+        "id": "EXO-002",
+        "title": "Modern authentication for Outlook",
+        "area": "exchange",
+        "location": "Settings › Org settings › Services › Modern authentication",
+        "source": "exo",
+        "request": "Get-OrganizationConfig",
+        "select": "value[0].OAuth2ClientProfileEnabled",
+        "operator": "equals",
+        "severity": "high",
+        "labels": {
+          "true": "On",
+          "false": "Off"
+        },
+        "why": "Basic authentication cannot be protected by multifactor authentication."
+      },
+      {
+        "id": "EXO-003",
+        "title": "Turn off SMTP AUTH protocol for your organization",
+        "area": "exchange",
+        "location": "Settings › Mail flow",
+        "source": "exo",
+        "request": "Get-TransportConfig",
+        "select": "value[0].SmtpClientAuthenticationDisabled",
+        "operator": "equals",
+        "severity": "medium",
+        "labels": {
+          "true": "Checked",
+          "false": "Not checked"
+        },
+        "why": "Authenticated SMTP submission uses basic authentication; turn it on only for the mailboxes that need it."
+      },
+      {
+        "id": "EXO-004",
+        "title": "External sender identification in Outlook",
+        "area": "exchange",
+        "source": "exo",
+        "request": "Get-ExternalInOutlook",
+        "select": "value[0].Enabled",
+        "operator": "equals",
+        "severity": "low",
+        "labels": {
+          "true": "On",
+          "false": "Off"
+        },
+        "why": "Marking external mail helps people notice impersonation."
+      },
+      {
+        "id": "DEF-001",
+        "title": "Enable the common attachments filter",
+        "area": "defender",
+        "location": "Email & collaboration › Policies & rules › Threat policies › Anti-malware › Default (Default)",
+        "source": "exo",
+        "request": "Get-MalwareFilterPolicy",
+        "parameters": {
+          "Identity": "Default"
+        },
+        "select": "value[0].EnableFileFilter",
+        "operator": "equals",
+        "severity": "medium",
+        "labels": {
+          "true": "On",
+          "false": "Off"
+        },
+        "why": "Executable and script attachments are a common way in."
+      },
+      {
+        "id": "DEF-002",
+        "title": "Enable zero-hour auto purge for malware",
+        "area": "defender",
+        "location": "Email & collaboration › Policies & rules › Threat policies › Anti-malware › Default (Default)",
+        "source": "exo",
+        "request": "Get-MalwareFilterPolicy",
+        "parameters": {
+          "Identity": "Default"
+        },
+        "select": "value[0].ZapEnabled",
+        "operator": "equals",
+        "severity": "medium",
+        "labels": {
+          "true": "On",
+          "false": "Off"
+        },
+        "why": "Mail found to be malicious after delivery should be removed."
+      },
+      {
+        "id": "DEF-003",
+        "title": "Enable mailbox intelligence",
+        "area": "defender",
+        "location": "Email & collaboration › Policies & rules › Threat policies › Anti-phishing › Office365 AntiPhish Default (Default)",
+        "source": "exo",
+        "request": "Get-AntiPhishPolicy",
+        "parameters": {
+          "Identity": "Office365 AntiPhish Default"
+        },
+        "select": "value[0].EnableMailboxIntelligence",
+        "operator": "equals",
+        "severity": "medium",
+        "labels": {
+          "true": "On",
+          "false": "Off"
+        },
+        "why": "Knowing who people usually correspond with makes impersonation easier to spot."
+      },
+      {
+        "id": "DEF-004",
+        "title": "Automatic forwarding rules",
+        "area": "defender",
+        "location": "Email & collaboration › Policies & rules › Threat policies › Anti-spam › Anti-spam outbound policy (Default)",
+        "source": "exo",
+        "request": "Get-HostedOutboundSpamFilterPolicy",
+        "parameters": {
+          "Identity": "Default"
+        },
+        "select": "value[0].AutoForwardingMode",
+        "operator": "equals",
+        "severity": "high",
+        "labels": {
+          "\"Automatic\"": "Automatic - System-controlled",
+          "\"On\"": "On - Forwarding is enabled",
+          "\"Off\"": "Off - Forwarding is disabled"
+        },
+        "why": "Automatic forwarding to outside addresses is a common way data leaves after an account is compromised."
+      },
+      {
+        "id": "PUR-001",
+        "title": "Record user and admin activity",
+        "area": "purview",
+        "location": "Solutions › Audit",
+        "source": "exo",
+        "request": "Get-AdminAuditLogConfig",
+        "select": "value[0].UnifiedAuditLogIngestionEnabled",
+        "operator": "equals",
+        "severity": "high",
+        "labels": {
+          "true": "On",
+          "false": "Off"
+        },
+        "why": "Without the unified audit log there is no record to investigate from."
+      },
+      {
+        "id": "PUR-002",
+        "title": "Data loss prevention policies that are on",
+        "area": "purview",
+        "location": "Solutions › Data loss prevention › Policies",
+        "source": "compliance",
+        "request": "Get-DlpCompliancePolicy",
+        "select": "value[?Mode=='Enable'].Name",
+        "operator": "countAtLeast",
+        "severity": "medium",
+        "why": "Policies in simulation or off state enforce nothing."
+      }
+    ]
+  },
+  "expected": {
+    "ENTRA-001": false,
+    "ENTRA-002": false,
+    "ENTRA-003": [
+      "adminsAndGuestInviters",
+      "none"
+    ],
+    "ENTRA-004": [
+      "2af84b1e-32c8-42b7-82bc-daa82404023b"
+    ],
+    "ENTRA-005": false,
+    "ENTRA-006": 3,
+    "ADMIN-001": [
+      2147483647
+    ],
+    "INTUNE-001": true,
+    "INTUNE-002": 30,
+    "INTUNE-003": 1,
+    "EXO-001": false,
+    "EXO-002": true,
+    "EXO-003": true,
+    "EXO-004": true,
+    "DEF-001": true,
+    "DEF-002": true,
+    "DEF-003": true,
+    "DEF-004": "Off",
+    "PUR-001": true,
+    "PUR-002": 1
+  },
+  "seal": {
+    "algorithm": "SHA-256",
+    "digest": "166cee0ba798909a07bad71bcf9baefdb55a0235221f79beec17d2686a49a2d0",
+    "sealedVersion": 1
+  }
+}

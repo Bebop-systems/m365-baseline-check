@@ -56,6 +56,8 @@ function New-MbcTuiState {
         AppIndex = 0; AppOffset = 0; AppSearch = ''; AppScroll = 0; AppDetail = $null
         Files = @(); ChooserIndex = 0; ChooserTitle = ''; ChooserPurpose = $null
         Prompt = $null; Panel = $null; PanelReturn = 'home'
+        # Test and demo seams: Fetch, Connection and Inventory, used instead of signing in and reading.
+        Seams = @{}; LastPromptKey = $null
     }
 }
 
@@ -164,7 +166,7 @@ function Get-MbcTuiRows {
     [OutputType([object[]])]
     param([Parameter(Mandatory)][hashtable] $State)
     if (-not $State.View) { return , @() }
-    return (Get-MbcResultRows -Results @($State.View.Results) -Filter $State.Filter -Search $State.Search -Expanded ([string[]]@($State.Expanded.Keys)))
+    return , (Get-MbcResultRows -Results @($State.View.Results) -Filter $State.Filter -Search $State.Search -Expanded ([string[]]@($State.Expanded.Keys)))
 }
 
 function Get-MbcTuiApps {
@@ -471,7 +473,7 @@ function Format-MbcResultsBody {
     $note = if ($counts.Fail + $counts.Error -eq 0 -and $State.Filter -eq 'attention' -and -not $State.Search) { 'Everything was met. Enter on an area lists its checks; a lists them all.' }
     elseif (-not $State.View.Sealed) { 'This result does not match its own seal. Treat it as untrustworthy.' }
     else { '' }
-    $out.Add($(if ($note) { '  ' + (Format-MbcStyle $note $(if ($State.View.Sealed) { 'dim' } else { 'bad' }) $c) } else { '' }))
+    if ($note) { $out.Add('  ' + (Format-MbcStyle $note $(if ($State.View.Sealed) { 'dim' } else { 'bad' }) $c)) }
     $out.Add('')
     $rows = Get-MbcTuiRows -State $State
     if ($rows.Count -eq 0) { $out.Add('  Nothing matches. Press a to show every check, or / to change the filter.'); return , $out.ToArray() }
@@ -508,7 +510,8 @@ function Format-MbcAppsBody {
     $notes = Format-MbcInventoryNote -Inventory $inventory -Glyphs $Glyphs
     $out.Add('  ' + (ConvertTo-MbcGlyphText $notes[0] $Glyphs))
     $extra = @($notes | Select-Object -Skip 1)
-    $out.Add($(if ($extra.Count) { '  ' + (Format-MbcStyle (ConvertTo-MbcGlyphText ($extra -join '  ') $Glyphs) 'warn' $c) } elseif ($State.AppSearch) { '  ' + (Format-MbcStyle "Matching '$($State.AppSearch)'" 'dim' $c) } else { '' }))
+    if ($extra.Count) { $out.Add('  ' + (Format-MbcStyle (ConvertTo-MbcGlyphText ($extra -join '  ') $Glyphs) 'warn' $c)) }
+    if ($State.AppSearch) { $out.Add('  ' + (Format-MbcStyle "Matching '$($State.AppSearch)'" 'dim' $c)) }
     $out.Add('')
     $apps = Get-MbcTuiApps -State $State
     if (-not $inventory.Collected) { $out.Add('  Turn it on from the home screen with t, then run again.'); return , $out.ToArray() }
@@ -589,7 +592,20 @@ function Get-MbcScreenBody {
     param([Parameter(Mandatory)][hashtable] $State, [Parameter(Mandatory)] $Cap, [Parameter(Mandatory)][hashtable] $Glyphs, [int] $Height)
     $c = $Cap.Color
     switch ($State.Screen) {
-        'home' { return , [string[]](@('') + (Format-MbcMenu -Items (Get-MbcHomeMenu -State $State) -Selected $State.MenuIndex -Width $Cap.Width -Glyphs $Glyphs -Color $c)) }
+        'home' {
+            $lines = [System.Collections.Generic.List[string]]::new()
+            $lines.Add('')
+            foreach ($l in (Format-MbcMenu -Items (Get-MbcHomeMenu -State $State) -Selected $State.MenuIndex -Width $Cap.Width -Glyphs $Glyphs -Color $c)) { $lines.Add($l) }
+            $lines.Add('')
+            if ($State.View) {
+                $source = if ($State.ViewFromFile) { "from $($State.ViewSource)" } else { 'this run' }
+                $lines.Add('  ' + (Format-MbcStyle 'Last results  ' 'dim' $c) + (Format-MbcCountsText -Counts $State.View.Counts -Color $c) + (Format-MbcStyle "   $($Glyphs.Dot) $source$(if (-not $State.Exported) { ', not exported yet' })" 'dim' $c))
+            }
+            elseif (-not $State.Connection) {
+                $lines.Add('  ' + (Format-MbcStyle 'Running signs you in first. Every session is read-only by construction.' 'dim' $c))
+            }
+            return , $lines.ToArray()
+        }
         'build' { return (Format-MbcMenu -Items $script:MbcBuildMenu -Selected $State.BuildIndex -Width $Cap.Width -Glyphs $Glyphs -Color $c) }
         'run' { return (Format-MbcRunBody -State $State -Cap $Cap -Glyphs $Glyphs -Height $Height) }
         'results' { return (Format-MbcResultsBody -State $State -Cap $Cap -Glyphs $Glyphs -Height $Height) }
@@ -621,10 +637,10 @@ function Format-MbcFrame {
     [OutputType([string[]])]
     param([Parameter(Mandatory)][hashtable] $State, [Parameter(Mandatory)] $Cap)
     $g = Get-MbcGlyphs -Unicode $Cap.Unicode
-    $header = @(Format-MbcScreenHeader -State $State -Cap $Cap -Glyphs $g)
+    [string[]] $header = Format-MbcScreenHeader -State $State -Cap $Cap -Glyphs $g
     $keys = $script:MbcScreenKeys[$State.Screen]
     if (-not $keys) { $keys = $script:MbcScreenKeys['home'] }
-    if ($State.Help) { $keys = @(, @('any key', 'close help')) }
+    if ($State.Help) { $keys = @(, @('Any key', 'closes this')) }
     $footer = Format-MbcFooter -Keys $keys -Width $Cap.Width -Glyphs $g -Color $Cap.Color
     $message = if ($State.Message) { '  ' + (Format-MbcStyle (Limit-MbcText (ConvertTo-MbcGlyphText $State.Message $g) ($Cap.Width - 4) $g.Ellipsis) $State.MessageStyle $Cap.Color) } else { '' }
     $bodyHeight = [Math]::Max(1, $Cap.Height - $header.Count - 2)

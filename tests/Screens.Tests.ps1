@@ -78,7 +78,7 @@ InModuleScope M365BaselineCheck {
             (Get-MbcTuiRows -State $s).Count | Should -Be 4
             Invoke-MbcTuiNavigation -State $s -Action 'select' -Cap $script:Cap | Out-Null
             $s.Expanded.ContainsKey('entra') | Should -BeTrue
-            @(Get-MbcTuiRows -State $s | Where-Object { $_.Result -and $_.Group.Area -eq 'entra' }).Count | Should -Be 2
+            @((Get-MbcTuiRows -State $s) | Where-Object { $_.Result -and $_.Group.Area -eq 'entra' }).Count | Should -Be 2
             Invoke-MbcTuiNavigation -State $s -Action 'select' -Cap $script:Cap | Out-Null
             $s.Expanded.ContainsKey('entra') | Should -BeFalse
         }
@@ -161,7 +161,7 @@ InModuleScope M365BaselineCheck {
         It 'groups results with counts, shows only what needs attention, and collapses met areas' {
             $text = (Format-MbcFrame -State (New-State 'results') -Cap $script:Cap) -join "`n"
             $text | Should -BeLike '*1 met, 1 not, 1 unverifiable*Showing: needs attention*'
-            $text | Should -BeLike '*▾ Entra  1 met · 1 not*✗ Not met*Users can register applications*Yes → No*'
+            $text | Should -BeLike '*▿ Entra  1 met · 1 not*✗ Not met*Users can register applications*Yes → No*'
             $text | Should -BeLike '*? Unverifiable*Mailbox auditing on by default*not connected*'
             $text | Should -Not -BeLike '*At least one Conditional Access policy is on*'
         }
@@ -192,6 +192,16 @@ InModuleScope M365BaselineCheck {
             $s = New-State 'results'
             $s.Help = $true
             (Format-MbcFrame -State $s -Cap $script:Cap) -join "`n" | Should -BeLike '*Keys on this screen*Show only checks not met*'
+        }
+        It 'shows the selection without colour, as NO_COLOR asks' {
+            $s = New-State 'results'
+            $s.ResultIndex = 1
+            $frame = Format-MbcFrame -State $s -Cap (New-MbcCapability -Width 100 -Height 30 -Unicode $true -Color $false)
+            @($frame | Where-Object { $_.StartsWith('▸') }).Count | Should -Be 1
+            ($frame | Where-Object { $_.StartsWith('▸') }) | Should -BeLike '*Users can register applications*'
+        }
+        It 'gives advice for every cause in the vocabulary' {
+            foreach ($cause in $script:MbcCauses) { $script:MbcCauseAdvice.ContainsKey($cause) | Should -BeTrue -Because "'$cause' needs advice" }
         }
         It 'reveals the sealed flourish, then settles' {
             $s = New-State 'home'

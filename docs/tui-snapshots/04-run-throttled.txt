@@ -1,0 +1,32 @@
+ M365 Baseline Check · Running ────────────────────────── Example tenant hygiene v1 · 166cee0ba798
+
+  Checking Example tenant hygiene v1 against Example Ltd
+
+  ███████▌───────────────────────────  3 of 14
+  ⠦ Graph asked for a pause: waiting 2 s
+
+    ✗ Not met       Users can register applications                                         Yes → No
+    ✓ Met           Users can create security groups
+    ✓ Met           Guest invite restrictions
+    ✗ Not met       Guest user access restrictions  Guest users have limi… → one of Guest user acce…
+    ✓ Met           Security defaults
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  Esc abandon, after the current request

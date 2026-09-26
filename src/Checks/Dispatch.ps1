@@ -10,10 +10,11 @@ function Invoke-MbcSourceFetch {
         [Parameter(Mandatory)][System.Collections.IDictionary] $Preset,
         [AllowNull()] $Connection,
         [AllowNull()] $Log,
-        [scriptblock] $OnTick
+        [scriptblock] $OnTick,
+        [scriptblock] $OnWait
     )
     if ($Item.Source -eq 'graph') {
-        return (Invoke-MbcGraphGet -ApiVersion $Item.ApiVersion -Request $Item.Request -OnTick $OnTick -Log $Log)
+        return (Invoke-MbcGraphGet -ApiVersion $Item.ApiVersion -Request $Item.Request -OnTick $OnTick -OnWait $OnWait -Log $Log)
     }
     $sessions = if ($Connection -and $Connection.Sessions) { $Connection.Sessions } else { [ordered]@{} }
     return (Invoke-MbcCmdletGet -Item $Item -Preset $Preset -Sessions $sessions -Log $Log)

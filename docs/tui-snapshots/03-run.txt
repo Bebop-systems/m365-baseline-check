@@ -1,0 +1,32 @@
+ M365 Baseline Check · Running ────────────────────────── Example tenant hygiene v1 · 166cee0ba798
+
+  Checking Example tenant hygiene v1 against Example Ltd
+
+  ██████████████████████▌────────────  9 of 14
+  ⠸ Get-MalwareFilterPolicy -Identity 'Default'
+
+    ✗ Not met       Users can register applications                                         Yes → No
+    ✓ Met           Users can create security groups
+    ✓ Met           Guest invite restrictions
+    ✗ Not met       Guest user access restrictions  Guest users have limi… → one of Guest user acce…
+    ✓ Met           Security defaults
+    ✗ Not met       Conditional Access policies that are on                           2 → at least 3
+    ✓ Met           Days before passwords expire
+    ✓ Met           Mark devices with no compliance policy assigned as
+    ✓ Met           Compliance status validity period (days)
+    ? Unverifiable  Device compliance policies                                    permission missing
+    ✓ Met           Mailbox auditing on by default
+    ✓ Met           Modern authentication for Outlook
+
+
+
+
+
+
+
+
+
+
+
+
+  Esc abandon, after the current request

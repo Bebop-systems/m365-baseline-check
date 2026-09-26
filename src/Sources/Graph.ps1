@@ -86,6 +86,8 @@ function Invoke-MbcGraphGet {
         [scriptblock] $Sleep,
         # Called after each page and through throttling waits, for a spinner. Cosmetic only.
         [scriptblock] $OnTick,
+        # Called with the seconds about to be waited, then with 0 when the wait is over.
+        [scriptblock] $OnWait,
         [ValidateRange(1, 1000)][int] $MaxPages = $script:MbcMaxPages,
         [AllowNull()] $Log
     )
@@ -124,7 +126,9 @@ function Invoke-MbcGraphGet {
                 $wait = Get-MbcRetryDelay -RetryAfter $response.RetryAfter -Attempt $attempt
                 $waited += $wait
                 Write-MbcLog -Log $Log -EventName 'throttled' -Data ([ordered]@{ source = 'graph'; request = $Request; status = $response.Status; waitSeconds = $wait; attempt = $attempt })
+                if ($OnWait) { & $OnWait $wait }
                 if ($Sleep) { & $Sleep $wait $OnTick } else { Wait-MbcSeconds -Seconds $wait -OnTick $OnTick }
+                if ($OnWait) { & $OnWait 0 }
                 continue
             }
             break

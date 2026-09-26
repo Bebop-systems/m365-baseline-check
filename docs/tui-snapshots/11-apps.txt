@@ -1,0 +1,32 @@
+ M365 Baseline Check · App inventory ──────────────────── Example tenant hygiene v1 · 166cee0ba798
+
+  3 third-party, 2 own registrations. Not listed: 2 Microsoft apps, 1 other service principal.
+
+    App                               Publisher             Verified  Consents
+    Backup Vault Connector            Tailspin Backup       ✓ yes     2 app
+▸   Handy PDF Signer                  Handy Apps            no        2 user (3 people)
+    Northwind Calendar Sync           Northwind Software    ✓ yes     3 admin
+    HR Reporting (own)                Example Ltd           no        1 admin · 1 app
+    Intranet Search (test) (own)      example.com           no        no consents
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  ↑↓ move   Enter open   / filter   x export   Esc back   ? help

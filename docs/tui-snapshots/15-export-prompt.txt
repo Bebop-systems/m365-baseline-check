@@ -1,0 +1,32 @@
+ M365 Baseline Check · Export ─────────────────────────── Example tenant hygiene v1 · 166cee0ba798
+
+  Team key, to lock the export. Leave it empty to write plaintext instead.
+
+  > •••••••••••••••••••••••••••▏
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  Enter confirm   Esc cancel

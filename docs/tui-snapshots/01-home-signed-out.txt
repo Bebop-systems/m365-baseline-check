@@ -1,0 +1,32 @@
+╭─ M365 Baseline Check ─────────────────────────────────────────────────────────────────── v0.1.0 ─╮
+│ Tenant    not signed in                                                         r signs in, or c │
+│ Sessions  none                                                                                   │
+│ Baseline  Example tenant hygiene · v1 · 166cee0ba798                                    sealed ✓ │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+  ▸ Run checks                                                                                   r
+    Choose a baseline…                                                                           b
+    Last results                                                                                 l
+    App inventory                                                                                i
+    Open a locked result…                                                                        o
+    Build or seal a baseline…                                                                    s
+    Sign in / switch account                                                                     c
+    Read the app inventory with each run: on                                                     t
+    Quit                                                                                         q
+
+  Running signs you in first. Every session is read-only by construction.
+
+
+
+
+
+
+
+
+
+
+
+
+
+  Chose Example tenant hygiene v1, fingerprint 166cee0ba798. Sealed and unchanged.
+  ↑↓ move   Enter select   r run   b baseline   ? help   q quit

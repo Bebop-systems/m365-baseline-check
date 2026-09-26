@@ -49,7 +49,7 @@ function Format-MbcActualText {
     [OutputType([string])]
     param([Parameter(Mandatory)] $Result, [switch] $Short)
     if ($Result.Operator -in 'exists', 'absent') { if ($Result.HasActual) { return 'present' } else { return 'absent' } }
-    if (-not $Result.HasActual) { return 'nothing' }
+    if (-not $Result.HasActual) { if ($Result.Verdict -eq 'Error' -and $Result.Cause -ne 'setting not found') { return 'not read' } else { return 'nothing' } }
     if ($Result.Operator -in 'countAtLeast', 'countAtMost' -and (Test-MbcIsList $Result.Actual)) {
         $n = $Result.Actual.Count
         if ($Short -or $n -eq 0) { return [string]$n }
@@ -156,8 +156,17 @@ function Format-MbcGroupHeading {
     $marker = if ($null -eq $Collapsed) { '' } elseif ($Collapsed) { "$($Glyphs.Collapsed) " } else { "$($Glyphs.Expanded) " }
     $name = Limit-MbcText $Group.Name ([Math]::Max(4, $Width - 40)) $Glyphs.Ellipsis
     $line = "  $marker" + (Format-MbcStyle $name 'title' ($Color -and -not $Selected)) + '  ' + ($parts -join " $($Glyphs.Dot) ")
-    if ($Selected) { return (Format-MbcStyle (Format-MbcPad (Limit-MbcText (Remove-MbcAnsi $line) $Width $Glyphs.Ellipsis) $Width) 'reverse' $Color) }
+    if ($Selected) { return (Format-MbcSelected -Text (Limit-MbcText (Remove-MbcAnsi $line) $Width $Glyphs.Ellipsis) -Width $Width -Glyphs $Glyphs -Color $Color) }
     return $line
+}
+
+function Format-MbcSelected {
+    # A selected row: a pointer in the first column, which reads without colour, plus reverse video.
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([Parameter(Mandatory)][AllowEmptyString()][string] $Text, [Parameter(Mandatory)][int] $Width, [Parameter(Mandatory)][hashtable] $Glyphs, [bool] $Color)
+    $plain = if ($Text.Length -gt 0) { $Glyphs.Pointer + $Text.Substring(1) } else { $Glyphs.Pointer }
+    return (Format-MbcStyle (Format-MbcPad $plain $Width) 'reverse' $Color)
 }
 
 function Format-MbcResultRow {
@@ -173,18 +182,34 @@ function Format-MbcResultRow {
     )
     $indent = 4
     $rest = [Math]::Max(10, $Width - $indent - $script:MbcTagWidth - 2)
+    $actual = ''
+    $expected = ''
     $note = switch ($Result.Verdict) {
-        'Fail' { Format-MbcComparisonText -Result $Result -Glyphs $Glyphs }
-        'Error' { [string]$Result.Cause }
+        'Fail' {
+            $actual = ConvertTo-MbcGlyphText (Format-MbcActualText -Result $Result -Short) $Glyphs
+            $expected = ConvertTo-MbcGlyphText (Format-MbcExpectedText -Result $Result) $Glyphs
+            "$actual $($Glyphs.Arrow) $expected"
+        }
+        'Error' { ConvertTo-MbcGlyphText ([string]$Result.Cause) $Glyphs }
         default { '' }
     }
-    $note = ConvertTo-MbcGlyphText $note $Glyphs
     $title = ConvertTo-MbcGlyphText $Result.Title $Glyphs
     if ($note) {
-        $noteWidth = [Math]::Min($note.Length, [Math]::Max(12, [int][Math]::Floor($rest * 0.45)))
-        $titleWidth = [Math]::Max(6, $rest - $noteWidth - 2)
+        # The title keeps what it needs when there is room; otherwise the two share it, the title at most half.
+        $titleWidth = $rest - $note.Length - 2
+        if ($titleWidth -lt $title.Length) { $titleWidth = [Math]::Max([Math]::Min($title.Length, [int][Math]::Floor($rest * 0.5)), $titleWidth) }
+        $titleWidth = [Math]::Min([Math]::Max(6, $titleWidth), [Math]::Max(6, $rest - 12))
+        $noteWidth = [Math]::Max(0, $rest - $titleWidth - 2)
         $plainTitle = Format-MbcPad (Limit-MbcText $title $titleWidth $Glyphs.Ellipsis) $titleWidth
-        $plainNote = Limit-MbcText $note ([Math]::Max(0, $rest - $titleWidth - 2)) $Glyphs.Ellipsis
+        if ($note.Length -le $noteWidth -or $Result.Verdict -ne 'Fail') { $plainNote = Limit-MbcText $note $noteWidth $Glyphs.Ellipsis }
+        else {
+            # Too long for its column: cut each side in proportion, so the row still reads actual → expected.
+            $arrow = " $($Glyphs.Arrow) "
+            $room = [Math]::Max(2, $noteWidth - $arrow.Length)
+            $actualWidth = [Math]::Min($actual.Length, [Math]::Max([int][Math]::Floor($room / 2), $room - $expected.Length))
+            $plainNote = (Limit-MbcText $actual $actualWidth $Glyphs.Ellipsis) + $arrow + (Limit-MbcText $expected ($room - $actualWidth) $Glyphs.Ellipsis)
+        }
+        $plainNote = Format-MbcPad $plainNote $noteWidth -Right
     }
     else {
         $plainTitle = Limit-MbcText $title $rest $Glyphs.Ellipsis
@@ -193,7 +218,7 @@ function Format-MbcResultRow {
     if ($Selected) {
         $tagPlain = Remove-MbcAnsi (Format-MbcVerdictTag -Verdict $Result.Verdict -Glyphs $Glyphs -Color $false)
         $line = (' ' * $indent) + $tagPlain + '  ' + $plainTitle + $(if ($plainNote) { "  $plainNote" } else { '' })
-        return (Format-MbcStyle (Format-MbcPad $line $Width) 'reverse' $Color)
+        return (Format-MbcSelected -Text $line -Width $Width -Glyphs $Glyphs -Color $Color)
     }
     $noteStyle = if ($Result.Verdict -eq 'Error') { 'dim' } else { '' }
     $line = (' ' * $indent) + (Format-MbcVerdictTag -Verdict $Result.Verdict -Glyphs $Glyphs -Color $Color) + '  ' + $plainTitle
@@ -235,6 +260,35 @@ function Format-MbcField {
     return , $out.ToArray()
 }
 
+$script:MbcCauseAdvice = @{
+    'permission missing'              = 'The account, or the scopes it was granted, cannot read this. The sign-in line shows what was granted.'
+    'not found'                       = 'The service says this object does not exist in this tenant.'
+    'throttled'                       = 'The service kept asking for pauses. Run again in a few minutes.'
+    'service error'                   = 'The service failed to answer. Run again; if it persists, the log has the details.'
+    'malformed response'              = 'The answer was not what the service documents. The log has it.'
+    'request rejected'                = 'The request itself was refused. The preset may be using a path or parameter the service does not accept.'
+    'too many pages'                  = 'The answer ran past the page limit. Narrow the request in the preset.'
+    'setting not found'               = 'The path found nothing in the answer: the setting may not exist in this tenant, or the preset''s path is wrong.'
+    'baseline expects a list'         = 'The baseline expects a list here and found a single value; the baseline needs correcting.'
+    'baseline expects a single value' = 'The baseline expects a single value here and found a list; the baseline needs correcting.'
+    'invalid pattern'                 = 'The baseline''s regular expression does not compile.'
+    'pattern too slow'                = 'The baseline''s regular expression took longer than a second.'
+    'request not declared'            = 'The preset does not declare this request, so it was not sent. Declare it and seal again.'
+    'not connected'                   = 'This source''s session did not connect. Sign in again and rerun.'
+    'cmdlet not available'            = 'The session has no such cmdlet. The account may lack the role that provides it.'
+    'cmdlet failed'                   = 'The cmdlet stopped with an error. The log has it.'
+    'not collected'                   = 'Nothing was read for this check. The log has what happened.'
+}
+
+function Get-MbcCauseAdvice {
+    # One sentence on what to do about a cause, for the detail view and the report.
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([AllowEmptyString()][string] $Cause)
+    if ($script:MbcCauseAdvice.ContainsKey($Cause)) { return $script:MbcCauseAdvice[$Cause] }
+    return 'The log has the details.'
+}
+
 function Format-MbcDetailLines {
     # Everything about one check: where it lives, expected against actual, what was read, and why.
     [CmdletBinding()]
@@ -258,9 +312,11 @@ function Format-MbcDetailLines {
     & $add 'Actual' (Format-MbcActualText -Result $Result)
     if ($Result.Verdict -eq 'Error') {
         & $add 'Cause' ("$($Result.Cause)" + $(if ($Result.Detail) { " ($($Result.Detail))" } else { '' }))
+        & $add 'Next' (Get-MbcCauseAdvice -Cause ([string]$Result.Cause))
     }
     & $add 'Read' (Format-MbcRequestText -Source $Result.Source -ApiVersion $Result.ApiVersion -Request $Result.Request -Parameters $Result.Parameters)
-    if ($Result.Select) { & $add 'Path' "$($Result.Select)   ($($Result.Operator))" }
+    if ($Result.Select) { & $add 'Path' $Result.Select }
+    & $add 'Compared' $Result.Operator
     $sourceName = if ($script:MbcSourceNames.Contains($Result.Source)) { $script:MbcSourceNames[$Result.Source] } else { $Result.Source }
     if ($Result.Source -eq 'graph' -and $Result.ApiVersion -eq 'beta') { $sourceName += ' (beta)' }
     & $add 'Source' $sourceName
@@ -324,7 +380,7 @@ function Format-MbcAppRow {
         (Limit-MbcText (Get-MbcConsentSummary -App $App -Glyphs $Glyphs) $c[3] $e)
     )
     $plain = '    ' + ($cells -join '  ')
-    if ($Selected) { return (Format-MbcStyle (Format-MbcPad $plain $Width) 'reverse' $Color) }
+    if ($Selected) { return (Format-MbcSelected -Text $plain -Width $Width -Glyphs $Glyphs -Color $Color) }
     $cells[2] = Format-MbcStyle $cells[2] $(if ($App.Verified) { 'ok' } else { 'dim' }) $Color
     return ('    ' + ($cells -join '  '))
 }

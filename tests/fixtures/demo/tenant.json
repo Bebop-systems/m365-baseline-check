@@ -1,0 +1,102 @@
+{
+  "graph": {
+    "/policies/authorizationPolicy": {
+      "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#policies/authorizationPolicy/$entity",
+      "id": "authorizationPolicy",
+      "allowInvitesFrom": "adminsAndGuestInviters",
+      "guestUserRoleId": "10dae51f-b6af-4016-8d66-8c2a99b929b3",
+      "defaultUserRolePermissions": { "allowedToCreateApps": true, "allowedToCreateSecurityGroups": false, "allowedToReadOtherUsers": true }
+    },
+    "/policies/identitySecurityDefaultsEnforcementPolicy": {
+      "id": "00000000000000000000000000000000", "displayName": "Security Defaults", "isEnabled": false
+    },
+    "/identity/conditionalAccess/policies": {
+      "pages": [
+        { "value": [
+            { "id": "00000000-0000-4000-8000-000000000101", "displayName": "Require MFA for all users", "state": "enabled" },
+            { "id": "00000000-0000-4000-8000-000000000102", "displayName": "Block legacy authentication", "state": "enabled" }
+          ],
+          "@odata.nextLink": "https://graph.microsoft.com/v1.0/identity/conditionalAccess/policies?$skiptoken=demo2" },
+        { "value": [
+            { "id": "00000000-0000-4000-8000-000000000103", "displayName": "Require compliant devices", "state": "enabledForReportingButNotEnforced" }
+          ] }
+      ],
+      "throttleOnce": 2
+    },
+    "/domains": { "value": [
+        { "id": "example.onmicrosoft.com", "isDefault": false, "passwordValidityPeriodInDays": 2147483647 },
+        { "id": "example.com", "isDefault": true, "passwordValidityPeriodInDays": 2147483647 }
+      ] },
+    "/deviceManagement": {
+      "id": "00000000-0000-4000-8000-000000000201",
+      "settings": { "deviceComplianceCheckinThresholdDays": 30, "isScheduledActionEnabled": true, "secureByDefault": true }
+    },
+    "/deviceManagement/deviceCompliancePolicies": { "status": 403 },
+    "/servicePrincipals": { "value": [
+        { "id": "00000000-0000-4000-8000-000000000301", "appId": "00000003-0000-0000-c000-000000000000", "displayName": "Microsoft Graph",
+          "appOwnerOrganizationId": "f8cdef31-a31e-4b4a-93e4-5f571e91255a", "publisherName": "Microsoft Services", "verifiedPublisher": null,
+          "servicePrincipalType": "Application", "accountEnabled": true, "tags": [], "appRoleAssignmentRequired": false },
+        { "id": "00000000-0000-4000-8000-000000000302", "appId": "00000000-0000-4000-8000-000000000402", "displayName": "Office 365 Exchange Online",
+          "appOwnerOrganizationId": "f8cdef31-a31e-4b4a-93e4-5f571e91255a", "publisherName": "Microsoft Services", "verifiedPublisher": null,
+          "servicePrincipalType": "Application", "accountEnabled": true, "tags": [], "appRoleAssignmentRequired": false },
+        { "id": "00000000-0000-4000-8000-000000000303", "appId": "00000000-0000-4000-8000-000000000403", "displayName": "Northwind Calendar Sync",
+          "appOwnerOrganizationId": "00000000-0000-4000-8000-000000000501", "publisherName": "Northwind Software",
+          "verifiedPublisher": { "displayName": "Northwind Software", "verifiedPublisherId": "7654321" },
+          "servicePrincipalType": "Application", "accountEnabled": true, "tags": [], "appRoleAssignmentRequired": true },
+        { "id": "00000000-0000-4000-8000-000000000304", "appId": "00000000-0000-4000-8000-000000000404", "displayName": "Handy PDF Signer",
+          "appOwnerOrganizationId": "00000000-0000-4000-8000-000000000502", "publisherName": "Handy Apps",
+          "verifiedPublisher": { "displayName": null, "verifiedPublisherId": null },
+          "servicePrincipalType": "Application", "accountEnabled": true, "tags": [], "appRoleAssignmentRequired": false },
+        { "id": "00000000-0000-4000-8000-000000000305", "appId": "00000000-0000-4000-8000-000000000405", "displayName": "Backup Vault Connector",
+          "appOwnerOrganizationId": "00000000-0000-4000-8000-000000000503", "publisherName": "Tailspin Backup",
+          "verifiedPublisher": { "displayName": "Tailspin Backup", "verifiedPublisherId": "1122334" },
+          "servicePrincipalType": "Application", "accountEnabled": true, "tags": [], "appRoleAssignmentRequired": false },
+        { "id": "00000000-0000-4000-8000-000000000306", "appId": "00000000-0000-4000-8000-000000000406", "displayName": "HR Reporting",
+          "appOwnerOrganizationId": "00000000-0000-4000-8000-000000000001", "publisherName": "Example Ltd", "verifiedPublisher": null,
+          "servicePrincipalType": "Application", "accountEnabled": true, "tags": [], "appRoleAssignmentRequired": true },
+        { "id": "00000000-0000-4000-8000-000000000307", "appId": "00000000-0000-4000-8000-000000000407", "displayName": "automation-account-identity",
+          "appOwnerOrganizationId": null, "publisherName": null, "verifiedPublisher": null,
+          "servicePrincipalType": "ManagedIdentity", "accountEnabled": true, "tags": [], "appRoleAssignmentRequired": false }
+      ] },
+    "/applications": { "value": [
+        { "id": "00000000-0000-4000-8000-000000000601", "appId": "00000000-0000-4000-8000-000000000406", "displayName": "HR Reporting",
+          "signInAudience": "AzureADMyOrg", "createdDateTime": "2025-02-11T09:00:00Z", "publisherDomain": "example.com", "verifiedPublisher": null },
+        { "id": "00000000-0000-4000-8000-000000000602", "appId": "00000000-0000-4000-8000-000000000408", "displayName": "Intranet Search (test)",
+          "signInAudience": "AzureADMyOrg", "createdDateTime": "2026-05-02T14:30:00Z", "publisherDomain": "example.com", "verifiedPublisher": null }
+      ] },
+    "/oauth2PermissionGrants": { "value": [
+        { "id": "g1", "clientId": "00000000-0000-4000-8000-000000000303", "consentType": "AllPrincipals", "principalId": null,
+          "resourceId": "00000000-0000-4000-8000-000000000301", "scope": "Calendars.ReadWrite User.Read offline_access" },
+        { "id": "g2", "clientId": "00000000-0000-4000-8000-000000000304", "consentType": "Principal", "principalId": "00000000-0000-4000-8000-000000000701",
+          "resourceId": "00000000-0000-4000-8000-000000000301", "scope": "Files.ReadWrite.All User.Read" },
+        { "id": "g3", "clientId": "00000000-0000-4000-8000-000000000304", "consentType": "Principal", "principalId": "00000000-0000-4000-8000-000000000702",
+          "resourceId": "00000000-0000-4000-8000-000000000301", "scope": "Files.ReadWrite.All User.Read" },
+        { "id": "g4", "clientId": "00000000-0000-4000-8000-000000000304", "consentType": "Principal", "principalId": "00000000-0000-4000-8000-000000000703",
+          "resourceId": "00000000-0000-4000-8000-000000000301", "scope": "User.Read" },
+        { "id": "g5", "clientId": "00000000-0000-4000-8000-000000000306", "consentType": "AllPrincipals", "principalId": null,
+          "resourceId": "00000000-0000-4000-8000-000000000301", "scope": "User.Read" }
+      ] },
+    "/servicePrincipals/00000000-0000-4000-8000-000000000303/appRoleAssignments": { "value": [] },
+    "/servicePrincipals/00000000-0000-4000-8000-000000000304/appRoleAssignments": { "value": [] },
+    "/servicePrincipals/00000000-0000-4000-8000-000000000305/appRoleAssignments": { "value": [
+        { "appRoleId": "00000000-0000-4000-8000-000000000801", "resourceId": "00000000-0000-4000-8000-000000000301", "resourceDisplayName": "Microsoft Graph" },
+        { "appRoleId": "00000000-0000-4000-8000-000000000802", "resourceId": "00000000-0000-4000-8000-000000000302", "resourceDisplayName": "Office 365 Exchange Online" }
+      ] },
+    "/servicePrincipals/00000000-0000-4000-8000-000000000306/appRoleAssignments": { "value": [
+        { "appRoleId": "00000000-0000-4000-8000-000000000803", "resourceId": "00000000-0000-4000-8000-000000000301", "resourceDisplayName": "Microsoft Graph" }
+      ] },
+    "/servicePrincipals/00000000-0000-4000-8000-000000000301": {
+      "id": "00000000-0000-4000-8000-000000000301", "displayName": "Microsoft Graph",
+      "appRoles": [
+        { "id": "00000000-0000-4000-8000-000000000801", "value": "Sites.Read.All" },
+        { "id": "00000000-0000-4000-8000-000000000803", "value": "User.Read.All" }
+      ],
+      "oauth2PermissionScopes": []
+    },
+    "/servicePrincipals/00000000-0000-4000-8000-000000000302": {
+      "id": "00000000-0000-4000-8000-000000000302", "displayName": "Office 365 Exchange Online",
+      "appRoles": [ { "id": "00000000-0000-4000-8000-000000000802", "value": "full_access_as_app" } ],
+      "oauth2PermissionScopes": []
+    }
+  }
+}

@@ -1,0 +1,32 @@
+ M365 Baseline Check · Check ──────────────────────────── Example tenant hygiene v1 · 166cee0ba798
+
+  ✗ Not met  ENTRA-004  medium severity · Entra
+  Guest user access restrictions
+
+  Where      Identity › External Identities › External collaboration settings
+  Expected   one of Guest user access is restricted to properties and memberships of their own
+             directory objects
+  Actual     Guest users have limited access to properties and memberships of directory objects
+  Read       GET v1.0 /policies/authorizationPolicy
+  Path       guestUserRoleId
+  Compared   in
+  Source     Graph
+  Why        Guests should not be able to enumerate the directory.
+  Log        run-20260926T141200Z-d3m0aa.jsonl, check ENTRA-004
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  ↑↓ previous/next   PgUp/PgDn scroll   Esc back   ? help

@@ -1,0 +1,32 @@
+ M365 Baseline Check · Results ────────────────────────── Example tenant hygiene v1 · 166cee0ba798
+
+ ╭─ Keys on this screen ────────────────────────────────────────────────────╮
+ │ ↑↓         Move the selection. j and k work too.                         │
+ │ Enter      Choose, open the selected row, or expand and collapse an      │
+ │            area.                                                         │
+ │ f          Show only checks not met. Press again for the default view.   │
+ │ e          Show only checks that couldn't be verified. Press again for   │
+ │            the default view.                                             │
+ │ a          Show every check. Press again for the default view.           │
+ │ /          Filter by text in the ID, setting or location.                │
+ │ i          The app inventory from this run.                              │
+ │ x          Export: one locked bundle plus a plain summary.               │
+ │ Esc        Go back. Backspace works too.                                 │
+ │ ?          This help.                                                    │
+ │                                                                          │
+ │ Any key closes this.                                                     │
+ ╰──────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+
+
+
+
+
+
+
+  Any key closes this
