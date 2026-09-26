@@ -104,21 +104,25 @@ function Get-MbcResultRows {
     .SYNOPSIS
         The rows of the results screen, in order: a heading per area, then that area's rows that pass
         the filter. In the default attention filter, an area with nothing to attend to shows as its
-        heading alone. The other filters leave out areas with no matching rows.
+        heading alone. The other filters leave out areas with no matching rows. An expanded area shows
+        all of its rows, whatever the filter.
     #>
     [CmdletBinding()]
     [OutputType([object[]])]
     param(
         [Parameter(Mandatory)][AllowEmptyCollection()][object[]] $Results,
         [AllowEmptyString()][string] $Filter = 'attention',
-        [AllowEmptyString()][string] $Search = ''
+        [AllowEmptyString()][string] $Search = '',
+        [AllowEmptyCollection()][string[]] $Expanded = @()
     )
     $rows = [System.Collections.Generic.List[object]]::new()
     foreach ($g in (Get-MbcAreaGroups -Results $Results)) {
-        $matching = @($g.Results | Where-Object { Test-MbcResultMatches -Result $_ -Filter $Filter -Search $Search })
-        if ($matching.Count -eq 0 -and ($Filter -ne 'attention' -or $Search)) { continue }
-        $rows.Add([pscustomobject]@{ Kind = 'heading'; Group = $g; Result = $null; Collapsed = ($matching.Count -eq 0) })
-        foreach ($r in $matching) { $rows.Add([pscustomobject]@{ Kind = 'result'; Group = $g; Result = $r; Collapsed = $false }) }
+        $open = $g.Area -in $Expanded
+        $shownFilter = if ($open) { 'all' } else { $Filter }
+        $shown = @($g.Results | Where-Object { Test-MbcResultMatches -Result $_ -Filter $shownFilter -Search $Search })
+        if ($shown.Count -eq 0 -and -not $open -and ($Filter -ne 'attention' -or $Search)) { continue }
+        $rows.Add([pscustomobject]@{ Kind = 'heading'; Group = $g; Result = $null; Collapsed = ($shown.Count -eq 0) })
+        foreach ($r in $shown) { $rows.Add([pscustomobject]@{ Kind = 'result'; Group = $g; Result = $r; Collapsed = $false }) }
     }
     return , $rows.ToArray()
 }
