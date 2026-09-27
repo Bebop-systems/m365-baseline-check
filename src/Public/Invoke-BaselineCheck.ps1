@@ -58,7 +58,7 @@ function Invoke-BaselineCheck {
 
     if (-not $Fetch) {
         $plan = Get-MbcSignInPlan -Preset $preset
-        & $say "Signing in: $($plan.Count) sign-in$(if ($plan.Count -ne 1) { 's' }), one after another. Choose the same account each time."
+        & $say "Signing in, one after another. Choose the same account each time."
         foreach ($l in $plan) { & $say "  $l" }
         $Connection = Connect-MbcSources -Preset $preset -Log $log
         $signedIn = $true

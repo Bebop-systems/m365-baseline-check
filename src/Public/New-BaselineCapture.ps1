@@ -27,7 +27,7 @@ function New-BaselineCapture {
     $connection = $null
     if (-not $Fetch) {
         $plan = Get-MbcSignInPlan -Preset $preset
-        Write-Information "Signing in: $($plan.Count) sign-in$(if ($plan.Count -ne 1) { 's' }), one after another. Choose the same account each time."
+        Write-Information "Signing in, one after another. Choose the same account each time."
         foreach ($l in $plan) { Write-Information "  $l" }
         $connection = Connect-MbcSources -Preset $preset
         foreach ($d in $connection.Disclosure) { Write-Information $d }
