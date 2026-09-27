@@ -61,6 +61,8 @@ function New-MbcTuiState {
         Connection = $null; Baseline = $null; AllowUnsealed = $false; ExpectedFingerprint = $null; OutputRoot = $OutputRoot
         IncludeInventory = $true
         View = $null; ViewSource = ''; ViewFromFile = $false; Exported = $false
+        # The current run's log, while a locked export can still carry it; every plaintext log this session wrote.
+        RunLogPath = $null; LockedAs = $null; PlaintextLogs = [System.Collections.Generic.List[string]]::new()
         Live = $null
         ResultIndex = 0; ResultOffset = 0; Filter = 'attention'; Search = ''; Expanded = @{}; DetailScroll = 0; Detail = $null
         AppIndex = 0; AppOffset = 0; AppSearch = ''; AppScroll = 0; AppDetail = $null

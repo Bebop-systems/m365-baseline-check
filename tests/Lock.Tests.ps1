@@ -113,6 +113,51 @@ InModuleScope M365BaselineCheck {
             Unlock-Result -Path $files.Locked -Key $secure -OutputDirectory $out -InformationAction SilentlyContinue | Out-Null
             @(Get-ChildItem $out -File).Count | Should -Be 5
         }
+        It 'carries the run log inside a locked bundle, deletes the plaintext copy, and gives it back on unlock' {
+            $dir = New-Dir 'with-log'
+            $logPath = Join-Path (New-Dir 'with-log-logs') 'run-1.jsonl'
+            [System.IO.File]::WriteAllText($logPath, "{`"event`":`"run.start`"}`n")
+            $files = Export-MbcRunFiles -Document $script:Doc -Directory $dir -KeyText $script:KeyText -LogPath $logPath
+            $files.LogLocked | Should -BeTrue
+            Test-Path $logPath | Should -BeFalse
+            [System.IO.File]::ReadAllText($files.Locked).IndexOf('run.start') | Should -Be -1 -Because 'the log is encrypted with the rest'
+            $secure = ConvertTo-SecureString -String $script:KeyText -AsPlainText -Force
+            $opened = Unlock-Result -Path $files.Locked -Key $secure
+            $opened.Files['run.jsonl'] | Should -BeLike '*run.start*'
+            $out = New-Dir 'with-log-unlocked'
+            Unlock-Result -Path $files.Locked -Key $secure -OutputDirectory $out -InformationAction SilentlyContinue | Out-Null
+            Test-Path (Join-Path $out 'run-20260926T141200Z.jsonl') | Should -BeTrue
+        }
+        It 'never replaces a locked bundle, so a second export cannot drop the log it carries' {
+            $dir = New-Dir 'twice'
+            $logPath = Join-Path (New-Dir 'twice-logs') 'run-1.jsonl'
+            [System.IO.File]::WriteAllText($logPath, 'first')
+            $files = Export-MbcRunFiles -Document $script:Doc -Directory $dir -KeyText $script:KeyText -LogPath $logPath
+            { Export-MbcRunFiles -Document $script:Doc -Directory $dir -KeyText $script:KeyText -LogPath $logPath } | Should -Throw '*already exists: this run was exported, locked*Nothing was replaced.*'
+            (Open-MbcLockedResult -Path $files.Locked -KeyText $script:KeyText).Files['run.jsonl'] | Should -Be 'first'
+        }
+        It 'leaves the run log where it is with a plaintext export' {
+            $logPath = Join-Path (New-Dir 'plain-log') 'run-1.jsonl'
+            [System.IO.File]::WriteAllText($logPath, 'x')
+            $files = Export-MbcRunFiles -Document $script:Doc -Directory (New-Dir 'plain-log-out') -NoLock -LogPath $logPath
+            $files.LogLocked | Should -BeFalse
+            Test-Path $logPath | Should -BeTrue
+        }
+        It 'refuses to unlock plaintext into a synced folder unless allowed' {
+            $dir = New-Dir 'sync-src'
+            $files = Export-MbcRunFiles -Document $script:Doc -Directory $dir -KeyText $script:KeyText
+            $secure = ConvertTo-SecureString -String $script:KeyText -AsPlainText -Force
+            $saved = $env:OneDrive
+            $env:OneDrive = New-Dir 'OneDrive'
+            try {
+                $target = Join-Path $env:OneDrive 'unlocked'
+                { Unlock-Result -Path $files.Locked -Key $secure -OutputDirectory $target } | Should -Throw '*synchronises to OneDrive*'
+                Test-Path $target | Should -BeFalse
+                Unlock-Result -Path $files.Locked -Key $secure -OutputDirectory $target -AllowSyncedOutput -InformationAction SilentlyContinue | Out-Null
+                @(Get-ChildItem $target -File).Count | Should -Be 5
+            }
+            finally { $env:OneDrive = $saved }
+        }
         It 'refuses a bundle whose result no longer matches its own seal' {
             $key = ConvertFrom-MbcTeamKeyText -Text $script:KeyText
             $tampered = ConvertFrom-MbcJson -Json (ConvertTo-MbcCanonicalJson $script:Doc) -AllowFloat

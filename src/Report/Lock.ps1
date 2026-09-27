@@ -179,6 +179,7 @@ function Open-MbcLockedResult {
         if (-not ((Test-MbcIsDictionary $bundle) -and $bundle.Contains($name) -and $bundle[$name] -is [string])) { throw "The file opened, but it has no $name inside. Treat it as untrustworthy." }
         $files[$name] = $bundle[$name]
     }
+    if ($bundle.Contains('run.jsonl') -and $bundle['run.jsonl'] -is [string]) { $files['run.jsonl'] = $bundle['run.jsonl'] }
     $document = ConvertFrom-MbcJson -Json $files['result.json'] -AllowFloat
     if (-not (Test-MbcResultSeal -Document $document)) {
         throw 'The file opened, but the result inside does not match its own seal. Treat it as untrustworthy.'
@@ -237,12 +238,14 @@ function Export-MbcRunFiles {
         [Parameter(Mandatory)][string] $Directory,
         [string] $KeyText,
         [switch] $NoLock,
-        [switch] $LockSummary
+        [switch] $LockSummary,
+        # The run's log. A locked export carries it inside the bundle and deletes the plaintext copy.
+        [string] $LogPath
     )
     if (-not $KeyText -and -not $NoLock) { throw 'Exports are locked with the team key. Give the key, or use -NoLock to write plaintext.' }
     $stamp = Get-MbcRunStamp -RunId ([string]$Document['run']['id'])
     $parts = Get-MbcBundle -Document $Document
-    $files = [pscustomobject]@{ Locked = $null; Summary = $null; Json = $null; Csv = $null; Apps = $null; Report = $null }
+    $files = [pscustomobject]@{ Locked = $null; Summary = $null; Json = $null; Csv = $null; Apps = $null; Report = $null; LogLocked = $false }
     if (-not (Test-Path -LiteralPath $Directory)) { New-Item -ItemType Directory -Path $Directory -Force | Out-Null }
 
     if ($NoLock) {
@@ -256,15 +259,24 @@ function Export-MbcRunFiles {
     }
 
     $key = ConvertFrom-MbcTeamKeyText -Text $KeyText
+    $files.Locked = Join-Path $Directory "result-$stamp.locked"
+    # A run is locked once. Replacing its bundle could drop the run log it carries, whose plaintext is gone.
+    if (Test-Path -LiteralPath $files.Locked) { throw "$(Split-Path -Leaf $files.Locked) already exists: this run was exported, locked, or another finished in the same second. Nothing was replaced." }
     $b = $Document['baseline']
     $header = [ordered]@{
         baseline = [ordered]@{ name = [string]$b['name']; version = [long]$b['version']; fingerprint = [string]$b['fingerprint'] }
         runUtc   = [string]$Document['run']['startedUtc']
         tool     = $script:MbcToolVersion
     }
+    $withLog = $LogPath -and (Test-Path -LiteralPath $LogPath -PathType Leaf)
+    if ($withLog) { $parts['run.jsonl'] = [System.IO.File]::ReadAllText($LogPath) }
     $envelope = Protect-MbcPayload -KeyBytes $key.Bytes -Header $header -PayloadText (ConvertTo-MbcCanonicalJson -Value $parts)
-    $files.Locked = Join-Path $Directory "result-$stamp.locked"
     Write-MbcFileAtomic -Path $files.Locked -Text (ConvertTo-MbcPrettyJson -Value $envelope)
+    if ($withLog) {
+        # The bundle is written and holds the log; the plaintext copy has no reason to stay.
+        [System.IO.File]::Delete($LogPath)
+        $files.LogLocked = $true
+    }
     if (-not $LockSummary) {
         $files.Summary = Join-Path $Directory (Get-MbcBundleFileName -Part 'summary.md' -Stamp $stamp)
         Write-MbcFileAtomic -Path $files.Summary -Text $parts['summary.md']

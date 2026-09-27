@@ -75,6 +75,52 @@ InModuleScope M365BaselineCheck {
             @(Get-ChildItem (Join-Path $script:Out 'results')).Count | Should -Be 2
         }
 
+        It 'moves the finished log into the locked bundle and leaves no plaintext log behind' {
+            $keyText = New-MbcTeamKeyText
+            $key = ConvertTo-SecureString -String $keyText -AsPlainText -Force
+            $lines = @(Invoke-BaselineCheck -Baseline $script:Sealed -OutputRoot $script:Out -Fetch $script:Fetch -Connection $script:Conn -Inventory $script:Inv -Export -Key $key 6>&1 |
+                    Where-Object { $_ -is [System.Management.Automation.InformationRecord] } | ForEach-Object { [string]$_.MessageData })
+            @(Get-ChildItem (Join-Path $script:Out 'logs') -File).Count | Should -Be 0
+            ($lines -join "`n") | Should -BeLike '*Log: inside result-*.locked, and the plaintext copy is deleted.*'
+            $locked = @(Get-ChildItem (Join-Path $script:Out 'results') -Filter '*.locked')[0].FullName
+            $log = (Open-MbcLockedResult -Path $locked -KeyText $keyText).Files['run.jsonl']
+            $log | Should -BeLike '*"event":"run.end"*' -Because 'the log is finished before it is locked away'
+        }
+
+        It 'says where the log stays when it is not locked away' {
+            $lines = @(Invoke-BaselineCheck -Baseline $script:Sealed -OutputRoot $script:Out -Fetch $script:Fetch -Connection $script:Conn -Inventory $script:Inv 6>&1 |
+                    Where-Object { $_ -is [System.Management.Automation.InformationRecord] } | ForEach-Object { [string]$_.MessageData })
+            ($lines -join "`n") | Should -BeLike '*The run log stays in plaintext at *docs/handling-results.md*'
+        }
+
+        It 'says where the log stays when the run stops, then stops with the reason' {
+            Mock Connect-MbcSources { throw 'Sign-in was cancelled.' }
+            $said = [System.Collections.Generic.List[string]]::new()
+            { Invoke-BaselineCheck -Baseline $script:Sealed -OutputRoot $script:Out -Inventory $script:Inv 6>&1 |
+                    ForEach-Object { if ($_ -is [System.Management.Automation.InformationRecord]) { $said.Add([string]$_.MessageData) } } } | Should -Throw '*Sign-in was cancelled.*'
+            ($said -join "`n") | Should -BeLike '*The run log stays in plaintext at *'
+        }
+
+        It 'returns no log path once the log is locked away' {
+            $key = ConvertTo-SecureString -String (New-MbcTeamKeyText) -AsPlainText -Force
+            $r = Invoke-Test @{ Baseline = $script:Sealed; Export = $true; Key = $key }
+            $r.LogLocked | Should -BeTrue
+            $r.LogPath | Should -BeNullOrEmpty
+        }
+
+        It 'refuses an output folder that synchronises to the cloud before writing or fetching anything, unless allowed' {
+            $saved = $env:OneDrive
+            $env:OneDrive = Join-Path $TestDrive "OneDrive-$([guid]::NewGuid().ToString('N'))"
+            try {
+                $synced = Join-Path $env:OneDrive 'M365BaselineCheck'
+                { Invoke-Test @{ Baseline = $script:Sealed; OutputRoot = $synced } } | Should -Throw '*synchronises to OneDrive*'
+                $script:Fetches.n | Should -Be 0
+                Test-Path $synced | Should -BeFalse
+                (Invoke-Test @{ Baseline = $script:Sealed; OutputRoot = $synced; AllowSyncedOutput = $true }).Counts.Pass | Should -Be 3
+            }
+            finally { $env:OneDrive = $saved }
+        }
+
         It 'refuses a malformed key before running anything' {
             $bad = ConvertTo-SecureString -String 'not a key' -AsPlainText -Force
             { Invoke-Test @{ Baseline = $script:Sealed; Export = $true; Key = $bad } } | Should -Throw "*isn't a team key*"

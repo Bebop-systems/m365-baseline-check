@@ -2,7 +2,8 @@ function Unlock-Result {
     <#
     .SYNOPSIS
         Opens a locked result with the team key. It opens to memory; plaintext is written to disk only
-        with -OutputDirectory, and then every part is written.
+        with -OutputDirectory, and then every part is written, with the run log when the bundle carries
+        one (run-<stamp>.jsonl).
     .EXAMPLE
         Unlock-Result ./results/result-20260926T141200Z.locked
     .EXAMPLE
@@ -13,10 +14,16 @@ function Unlock-Result {
     param(
         [Parameter(Mandatory, Position = 0)][string] $Path,
         [securestring] $Key,
-        [string] $OutputDirectory
+        [string] $OutputDirectory,
+        [switch] $AllowSyncedOutput
     )
     # Messages show unless the caller chose otherwise.
     if (-not $PSBoundParameters.ContainsKey('InformationAction')) { $InformationPreference = 'Continue' }
+    if ($OutputDirectory -and -not $AllowSyncedOutput) {
+        $full = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutputDirectory)
+        $service = Get-MbcSyncedLocation -Path $full
+        if ($service) { throw "$OutputDirectory synchronises to $service, so the plaintext would be copied to the cloud. Choose a folder that stays on this machine, or pass -AllowSyncedOutput if your policy allows it. docs/handling-results.md explains." }
+    }
     $envelope = Read-MbcLockedFile -Path $Path
     $keyText = if ($Key) { ConvertFrom-MbcSecureKey -Key $Key }
     elseif ($script:MbcSessionKey) { $script:MbcSessionKey }
@@ -29,7 +36,7 @@ function Unlock-Result {
         foreach ($name in $opened.Files.Keys) {
             Write-MbcFileAtomic -Path (Join-Path $OutputDirectory (Get-MbcBundleFileName -Part $name -Stamp $stamp)) -Text $opened.Files[$name]
         }
-        Write-Information "Unlocked into $OutputDirectory. Those files are plaintext; file them accordingly."
+        Write-Information "Unlocked into $OutputDirectory. Those files are plaintext and confidential: keep them on this machine and delete them when done (docs/handling-results.md)."
     }
     return $opened
 }
