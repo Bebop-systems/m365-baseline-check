@@ -219,8 +219,20 @@ InModuleScope M365BaselineCheck {
     Describe "Signing out" {
         BeforeAll {
             # Stand-ins where the Graph module is not installed (CI), so the calls can be mocked.
-            if (-not (Get-Command -Name Disconnect-MgGraph -ErrorAction SilentlyContinue)) { function global:Disconnect-MgGraph { param([switch] $SignOutFromBroker) } }
-            if (-not (Get-Command -Name Get-MgContext -ErrorAction SilentlyContinue)) { function global:Get-MgContext { } }
+            $script:MadeStandIns = @()
+            if (-not (Get-Command -Name Disconnect-MgGraph -ErrorAction SilentlyContinue)) { function global:Disconnect-MgGraph { param([switch] $SignOutFromBroker) }; $script:MadeStandIns += 'Disconnect-MgGraph' }
+            if (-not (Get-Command -Name Get-MgContext -ErrorAction SilentlyContinue)) { function global:Get-MgContext { }; $script:MadeStandIns += 'Get-MgContext' }
+        }
+        AfterAll {
+            foreach ($f in $script:MadeStandIns) { Remove-Item -LiteralPath "Function:\global:$f" -ErrorAction SilentlyContinue }
+        }
+        It "logs that no broker sign-out was needed when there was no Graph session" {
+            Mock Get-Module { [pscustomobject]@{ Name = $Name } }
+            Mock Get-MgContext { $null }
+            $log = New-MbcRunLog -Directory $TestDrive -RunId "20260101T000000Z-so0003"
+            (Invoke-MbcDisconnectAll -Log $log).Count | Should -Be 0
+            [System.IO.File]::ReadAllText($log.Path) | Should -BeLike '*"brokerSignOut":"not needed: no Graph session"*'
+            (Get-MbcBrokerAdvice -Account 'operator@example.com').Count | Should -Be 0
         }
         BeforeEach {
             $script:ContextCalls = 0

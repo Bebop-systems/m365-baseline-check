@@ -72,6 +72,8 @@ function Invoke-MbcDisconnectAll {
     param([AllowNull()] $Log)
     $closed = [System.Collections.Generic.List[string]]::new()
     $problems = [System.Collections.Generic.List[string]]::new()
+    $script:MbcBrokerSignOutSkipped = $false
+    $brokerState = 'not needed: no Graph session'
     if ((Get-Module -Name ExchangeOnlineManagement) -and (Get-Command -Name Get-ConnectionInformation -ErrorAction SilentlyContinue)) {
         $open = @(Get-ConnectionInformation -ErrorAction SilentlyContinue | Where-Object { $_ })
         if ($open.Count -gt 0) {
@@ -91,6 +93,7 @@ function Invoke-MbcDisconnectAll {
         # Graph's), and Graph prints that straight to the console. So it is only tried where it can work,
         # and otherwise the operator is told what Windows may still remember (Get-MbcBrokerAdvice).
         $script:MbcBrokerSignOutSkipped = [bool](Get-Module -Name ExchangeOnlineManagement)
+        $brokerState = if ($script:MbcBrokerSignOutSkipped) { 'skipped: Exchange Online loaded' } else { 'attempted' }
         try {
             if ($script:MbcBrokerSignOutSkipped) { Disconnect-MgGraph -ErrorAction Stop | Out-Null }
             else { Disconnect-MgGraph -SignOutFromBroker -ErrorAction Stop -WarningAction SilentlyContinue -WarningVariable brokerWarnings | Out-Null }
@@ -102,7 +105,7 @@ function Invoke-MbcDisconnectAll {
         foreach ($w in @($brokerWarnings)) { if ($w) { $problems.Add("Graph broker: $w") } }
         if (-not (Get-MgContext -ErrorAction SilentlyContinue)) { $closed.Add('Graph') }
     }
-    Write-MbcLog -Log $Log -EventName 'signout' -Data ([ordered]@{ closed = $closed.ToArray(); problems = $problems.ToArray(); brokerSignOut = $(if ($script:MbcBrokerSignOutSkipped) { 'skipped: Exchange Online loaded' } else { 'attempted' }) })
+    Write-MbcLog -Log $Log -EventName 'signout' -Data ([ordered]@{ closed = $closed.ToArray(); problems = $problems.ToArray(); brokerSignOut = $brokerState })
     return , $closed.ToArray()
 }
 

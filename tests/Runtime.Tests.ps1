@@ -194,7 +194,8 @@ InModuleScope M365BaselineCheck {
             Should -Invoke Invoke-MbcDisconnectAll -Times 1 -Exactly
             $said | Should -BeLike '*Signed out of Graph, Exchange Online.*'
             $said | Should -BeLike "*-OAuth2PermissionGrantId 'grant1'*"
-            $said | Should -BeLike '*Accounts used by other apps*'
+            if ($IsWindows) { $said | Should -BeLike '*Accounts used by other apps*' }
+            else { $said | Should -Not -BeLike '*Accounts used by other apps*' -Because 'the Windows advice is for Windows' }
             $said.Contains('System.String[]') | Should -BeFalse
             $said.Contains('System.Object[]') | Should -BeFalse
         }
