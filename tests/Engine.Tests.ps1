@@ -165,6 +165,17 @@ InModuleScope M365BaselineCheck {
             $r.Actual.Count | Should -Be 0
         }
 
+        It 'says exactly what was missing when a setting is not found' {
+            Get-MbcMissingStep -Select 'settings.secureByDefault' -Body (ConvertFrom-MbcJson -Json '{"settings":null}') | Should -BeLike "'settings' is null in the answer*"
+            Get-MbcMissingStep -Select 'settings.secureByDefault' -Body (ConvertFrom-MbcJson -Json '{"other":1}') | Should -Be "there's no 'settings' in the answer"
+            Get-MbcMissingStep -Select 'value[0].AuditDisabled' -Body (ConvertFrom-MbcJson -Json '{"value":[]}') | Should -Be "'value' has 0 items"
+            Get-MbcMissingStep -Select 'value[0].AuditDisabled' -Body (ConvertFrom-MbcJson -Json '{"value":[{"x":1}]}') | Should -Be "there's no 'value[0].AuditDisabled' in the answer"
+            $empty = { param($Item) New-MbcFetchResult -Ok $true -Body (ConvertFrom-MbcJson -Json '{"defaultUserRolePermissions":null}') -Status 200 }
+            $r = (Invoke-MbcRun -Baseline $script:Baseline -Fetch $empty).Results | Where-Object Id -eq 'ORG-001'
+            $r.Cause | Should -Be 'setting not found'
+            $r.Detail | Should -BeLike "'defaultUserRolePermissions' is null*"
+        }
+
         It 'counts verdicts' {
             $c = Get-MbcCounts -Results @([pscustomobject]@{ Verdict = 'Pass' }, [pscustomobject]@{ Verdict = 'Error' }, [pscustomobject]@{ Verdict = 'Error' })
             "$($c.Pass) $($c.Fail) $($c.Error) $($c.Total)" | Should -Be '1 0 2 3'

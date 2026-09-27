@@ -109,6 +109,32 @@ function Invoke-MbcCollection {
     return $collected
 }
 
+function Get-MbcMissingStep {
+    # Where a select path stopped: "'settings' is null", or "there's no 'settings'". Plain and index steps
+    # only; anything else gets no detail rather than a guess. Pure.
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([Parameter(Mandatory)][string] $Select, [AllowNull()][object] $Body)
+    try { $query = ConvertTo-MbcPathQuery -Select $Select } catch { return $null }
+    $node = $Body
+    $path = ''
+    foreach ($step in $query.Steps) {
+        $path = if ($path) { "$path.$($step.Name)" } else { $step.Name }
+        if (-not (Test-MbcIsDictionary $node) -or -not $node.Contains($step.Name)) { return "there's no '$path' in the answer" }
+        $node = $node[$step.Name]
+        if ($null -eq $node) { return "'$path' is null in the answer: often a setting nobody has saved yet, which the portal shows as its default" }
+        if ($step.Kind -eq 'index') {
+            if (-not (Test-MbcIsList $node)) { return "'$path' isn't a list" }
+            $i = if ($step.Index -lt 0) { $node.Count + $step.Index } else { $step.Index }
+            if ($i -lt 0 -or $i -ge $node.Count) { return "'$path' has $($node.Count) item$(if ($node.Count -ne 1) { 's' })" }
+            $node = $node[$i]
+            $path = "$path[$($step.Index)]"
+        }
+        elseif ($step.Kind -ne 'plain') { return $null }
+    }
+    return $null
+}
+
 function Get-MbcSelectedValue {
     [CmdletBinding()]
     [OutputType([pscustomobject])]
@@ -154,6 +180,7 @@ function Get-MbcCheckResult {
             $comparison = Compare-MbcValue -Actual $actual -Operator ([string]$Check['operator']) -Expected $expectedValue -CaseSensitive:$cs
             $verdict = $comparison.Verdict
             $cause = $comparison.Cause
+            if ($cause -eq 'setting not found') { $detail = Get-MbcMissingStep -Select ([string]$Check['select']) -Body $Got.Body }
         }
     }
     # Error never becomes Pass, and never goes without a cause from the closed vocabulary.

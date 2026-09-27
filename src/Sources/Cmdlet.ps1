@@ -89,7 +89,11 @@ function Invoke-MbcCmdletRunner {
     [OutputType([object[]])]
     param([Parameter(Mandatory)][System.Management.Automation.CommandInfo] $Command, [Parameter(Mandatory)][hashtable] $Parameters)
     $ProgressPreference = 'SilentlyContinue'
-    return , @(& $Command @Parameters -ErrorAction Stop -WarningAction SilentlyContinue)
+    # Warnings are discarded by redirecting the stream, not by -WarningAction: Exchange Online's cmdlets
+    # pass their bound parameters on to the service, and Get-OrganizationConfig fails server-side when
+    # it receives one it doesn't expect. A redirection never reaches the cmdlet. (A global $WarningPreference
+    # of Stop or Inquire still applies inside the cmdlet's module; that is the operator's own setting.)
+    return , @(& $Command @Parameters -ErrorAction Stop 3>$null)
 }
 
 function Resolve-MbcSessionCommand {

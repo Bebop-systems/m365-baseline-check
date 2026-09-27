@@ -58,7 +58,7 @@ function Invoke-BaselineCheck {
 
     if (-not $Fetch) {
         $plan = Get-MbcSignInPlan -Preset $preset
-        & $say "Signing in: $($plan.Count) sign-in$(if ($plan.Count -ne 1) { 's' }), one after another. Choose the same account each time."
+        & $say $(if ($plan.Count -gt 1) { 'Signing in, one after another. Choose the same account each time.' } else { 'Signing in:' })
         foreach ($l in $plan) { & $say "  $l" }
         $Connection = Connect-MbcSources -Preset $preset -Log $log
         $signedIn = $true
@@ -82,6 +82,7 @@ function Invoke-BaselineCheck {
             $closed = Invoke-MbcDisconnectAll -Log $log
             if (@($closed).Count) { & $say "Signed out of $(@($closed) -join ', ')." }
             if ($Connection.PSObject.Properties['Consent']) { foreach ($a in (Format-MbcConsentAdvice -Consent $Connection.Consent)) { & $say $a } }
+            foreach ($a in (Get-MbcBrokerAdvice -Account ([string]$Connection.Account))) { & $say $a }
         }
     }
     $document = New-MbcResultDocument -Run $run -Baseline $b -Connection $Connection

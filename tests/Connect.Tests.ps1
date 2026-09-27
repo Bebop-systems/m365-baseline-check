@@ -19,6 +19,30 @@ InModuleScope M365BaselineCheck {
         It 'lists the cmdlet sources the checks use' {
             (Get-MbcPresetSources -Preset $script:Preset) -join ',' | Should -Be 'exo'
         }
+        It 'says which sign-ins are coming, and that Security & Compliance usually reuses Exchange''s' {
+            $both = ConvertFrom-MbcJson -Json ([System.IO.File]::ReadAllText((Join-Path $script:ModuleRoot 'presets/example-tenant-hygiene.json')))
+            $plan = Get-MbcSignInPlan -Preset $both
+            $plan.Count | Should -Be 3
+            $plan[2] | Should -BeLike '*usually reuses the Exchange Online sign-in*'
+        }
+        It 'connects Exchange Online before Security & Compliance, whatever order the checks are in' {
+            $p = ConvertFrom-MbcJson -Json ([System.IO.File]::ReadAllText((Join-Path $script:ModuleRoot 'presets/example-tenant-hygiene.json')))
+            $p['checks'] = @(@($p['checks']) | Where-Object { $_['source'] -eq 'compliance' }) + @(@($p['checks']) | Where-Object { $_['source'] -eq 'exo' })
+            (Get-MbcPresetSources -Preset $p) -join ',' | Should -Be 'exo,compliance'
+            $plan = Get-MbcSignInPlan -Preset $p
+            $plan[1] | Should -BeLike 'Exchange Online: a browser window.'
+            $plan[2] | Should -BeLike '*usually reuses the Exchange Online sign-in*'
+        }
+        It 'tells the operator what Windows may remember when the broker clean-up could not run' -Skip:(-not $IsWindows) {
+            $saved = $script:MbcBrokerSignOutSkipped
+            try {
+                $script:MbcBrokerSignOutSkipped = $true
+                (Get-MbcBrokerAdvice -Account 'operator@example.com') -join ' ' | Should -BeLike '*may still remember operator@example.com*Accounts used by other apps*'
+                $script:MbcBrokerSignOutSkipped = $false
+                (Get-MbcBrokerAdvice -Account 'operator@example.com').Count | Should -Be 0
+            }
+            finally { $script:MbcBrokerSignOutSkipped = $saved }
+        }
         It 'reads a session module name from a name or a path' {
             Get-MbcSessionModuleName -ModuleName 'tmpEXO_abc123' | Should -Be 'tmpEXO_abc123'
             Get-MbcSessionModuleName -ModuleName 'C:\Temp\tmpEXO_abc123\tmpEXO_abc123.psm1' | Should -Be 'tmpEXO_abc123'
@@ -189,6 +213,45 @@ InModuleScope M365BaselineCheck {
                 )
             }
             (Connect-MbcSources -Preset $p -Transport $script:Transport).Sessions['compliance'] | Should -Be 'tmpEXO_two'
+        }
+    }
+
+    Describe "Signing out" {
+        BeforeAll {
+            # Stand-ins where the Graph module is not installed (CI), so the calls can be mocked.
+            $script:MadeStandIns = @()
+            if (-not (Get-Command -Name Disconnect-MgGraph -ErrorAction SilentlyContinue)) { function global:Disconnect-MgGraph { param([switch] $SignOutFromBroker) }; $script:MadeStandIns += 'Disconnect-MgGraph' }
+            if (-not (Get-Command -Name Get-MgContext -ErrorAction SilentlyContinue)) { function global:Get-MgContext { }; $script:MadeStandIns += 'Get-MgContext' }
+        }
+        AfterAll {
+            foreach ($f in $script:MadeStandIns) { Remove-Item -LiteralPath "Function:\global:$f" -ErrorAction SilentlyContinue }
+        }
+        It "logs that no broker sign-out was needed when there was no Graph session" {
+            Mock Get-Module { [pscustomobject]@{ Name = $Name } }
+            Mock Get-MgContext { $null }
+            $log = New-MbcRunLog -Directory $TestDrive -RunId "20260101T000000Z-so0003"
+            (Invoke-MbcDisconnectAll -Log $log).Count | Should -Be 0
+            [System.IO.File]::ReadAllText($log.Path) | Should -BeLike '*"brokerSignOut":"not needed: no Graph session"*'
+            (Get-MbcBrokerAdvice -Account 'operator@example.com').Count | Should -Be 0
+        }
+        BeforeEach {
+            $script:ContextCalls = 0
+            $script:BrokerFlags = [System.Collections.Generic.List[bool]]::new()
+            Mock Get-MgContext { $script:ContextCalls++; if ($script:ContextCalls -eq 1) { [pscustomobject]@{ Account = "operator@example.com" } } }
+            Mock Disconnect-MgGraph { $script:BrokerFlags.Add([bool]$SignOutFromBroker) }
+            Mock Get-Command { $null } -ParameterFilter { $Name -eq "Get-ConnectionInformation" }
+        }
+        It "skips the broker sign-out when Exchange Online is loaded, and logs that it did" {
+            Mock Get-Module { [pscustomobject]@{ Name = $Name } }
+            $log = New-MbcRunLog -Directory $TestDrive -RunId "20260101T000000Z-so0001"
+            (Invoke-MbcDisconnectAll -Log $log) -join "," | Should -Be "Graph"
+            $script:BrokerFlags -join "," | Should -Be "False"
+            [System.IO.File]::ReadAllText($log.Path) | Should -BeLike "*brokerSignOut*skipped*"
+        }
+        It "signs out of the broker too when Exchange Online is not loaded" {
+            Mock Get-Module { if ($Name -eq "Microsoft.Graph.Authentication") { [pscustomobject]@{ Name = $Name } } }
+            (Invoke-MbcDisconnectAll) -join "," | Should -Be "Graph"
+            $script:BrokerFlags -join "," | Should -Be "True"
         }
     }
 }

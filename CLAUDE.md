@@ -184,7 +184,9 @@ end to end still wants a second live run; record the result here.
 Credentials and sessions are treated as hazardous. `Connect-MbcSources` closes any Graph and Exchange
 sessions already open in the process before signing in, and closes everything again if sign-in fails
 part-way. Graph connects with `-ContextScope Process`, so its token cache never reaches disk.
-`Invoke-MbcDisconnectAll` (Graph with `-SignOutFromBroker`, then Exchange) runs when the view quits,
+`Invoke-MbcDisconnectAll` (Exchange, then Graph; Graph with `-SignOutFromBroker` unless Exchange
+Online's module is loaded, where that always fails, so the operator is told what Windows may remember
+instead) runs when the view quits,
 on account switch, and at the end of `Invoke-BaselineCheck` and `New-BaselineCapture`. Keep it that
 way: no new path may sign in without a matching sign-out.
 

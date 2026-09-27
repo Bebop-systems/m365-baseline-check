@@ -109,6 +109,18 @@ InModuleScope M365BaselineCheck {
             $script:Report | Should -BeLike '*EXO-001*Cause      not connected*'
             $script:Report | Should -BeLike '*Read       Get-OrganizationConfig*'
         }
+        It 'keeps the consent removal command whole and indented, so it copies as one command' {
+            $v = New-TestView
+            $v | Add-Member -NotePropertyName Consent -NotePropertyValue ([pscustomobject]@{
+                    ClientAppId = '14d82eec-204b-4c2f-b7e8-296a70dab67e'; ClientName = 'Microsoft Graph Command Line Tools'; ServicePrincipalId = 'sp1'; Cause = $null
+                    Grants = @([pscustomobject]@{ Id = 'grant1'; Type = 'admin'; Scopes = @('User.Read'); WriteScopes = @() })
+                }) -Force
+            $lines = (ConvertTo-MbcTextReport -View $v).Split("`n")
+            $at = [array]::IndexOf($lines, '      Remove-MgOauth2PermissionGrant `')
+            $at | Should -BeGreaterThan 0
+            $lines[$at + 1] | Should -BeExactly "          -OAuth2PermissionGrantId 'grant1'"
+        }
+
         It 'includes the app inventory with consents' {
             $script:Report | Should -BeLike '*App inventory*2 third-party, 2 own registrations. Not listed: 2 Microsoft apps, 1 other service principal.*'
             $script:Report | Should -BeLike '*Example Scheduler*Delegated, admin consent for all users*Mail.Read, User.Read*'

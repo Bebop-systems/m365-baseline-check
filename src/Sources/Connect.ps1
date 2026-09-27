@@ -72,6 +72,8 @@ function Invoke-MbcDisconnectAll {
     param([AllowNull()] $Log)
     $closed = [System.Collections.Generic.List[string]]::new()
     $problems = [System.Collections.Generic.List[string]]::new()
+    $script:MbcBrokerSignOutSkipped = $false
+    $brokerState = 'not needed: no Graph session'
     if ((Get-Module -Name ExchangeOnlineManagement) -and (Get-Command -Name Get-ConnectionInformation -ErrorAction SilentlyContinue)) {
         $open = @(Get-ConnectionInformation -ErrorAction SilentlyContinue | Where-Object { $_ })
         if ($open.Count -gt 0) {
@@ -87,7 +89,15 @@ function Invoke-MbcDisconnectAll {
         # The broker sign-out can trip over Exchange Online's copy of MSAL once that is loaded (Method not
         # found ... WithBroker). The disconnect still happens; the warning belongs in the log, not the console.
         $brokerWarnings = $null
-        try { Disconnect-MgGraph -SignOutFromBroker -ErrorAction Stop -WarningAction SilentlyContinue -WarningVariable brokerWarnings | Out-Null }
+        # With Exchange Online's module loaded, the broker sign-out always fails (its MSAL build replaces
+        # Graph's), and Graph prints that straight to the console. So it is only tried where it can work,
+        # and otherwise the operator is told what Windows may still remember (Get-MbcBrokerAdvice).
+        $script:MbcBrokerSignOutSkipped = [bool](Get-Module -Name ExchangeOnlineManagement)
+        $brokerState = if ($script:MbcBrokerSignOutSkipped) { 'skipped: Exchange Online loaded' } else { 'attempted' }
+        try {
+            if ($script:MbcBrokerSignOutSkipped) { Disconnect-MgGraph -ErrorAction Stop | Out-Null }
+            else { Disconnect-MgGraph -SignOutFromBroker -ErrorAction Stop -WarningAction SilentlyContinue -WarningVariable brokerWarnings | Out-Null }
+        }
         catch {
             try { Disconnect-MgGraph -ErrorAction Stop | Out-Null }
             catch { $problems.Add("Graph: $($_.Exception.Message)") }
@@ -95,7 +105,7 @@ function Invoke-MbcDisconnectAll {
         foreach ($w in @($brokerWarnings)) { if ($w) { $problems.Add("Graph broker: $w") } }
         if (-not (Get-MgContext -ErrorAction SilentlyContinue)) { $closed.Add('Graph') }
     }
-    Write-MbcLog -Log $Log -EventName 'signout' -Data ([ordered]@{ closed = $closed.ToArray(); problems = $problems.ToArray() })
+    Write-MbcLog -Log $Log -EventName 'signout' -Data ([ordered]@{ closed = $closed.ToArray(); problems = $problems.ToArray(); brokerSignOut = $brokerState })
     return , $closed.ToArray()
 }
 
@@ -122,7 +132,9 @@ function Get-MbcPresetSources {
         $source = Get-MbcCheckSource -Check $check
         if ($source -in $script:MbcCmdletSources -and -not $sources.Contains($source)) { $sources.Add($source) }
     }
-    return , $sources.ToArray()
+    # Always Exchange Online first: Security & Compliance then reuses its sign-in, and the plan shown
+    # before signing in can say so truthfully.
+    return , [string[]]@($script:MbcCmdletSources | Where-Object { $sources.Contains($_) })
 }
 
 function Get-MbcSessionModuleName {
@@ -162,8 +174,12 @@ function Get-MbcSignInPlan {
     [OutputType([string[]])]
     param([Parameter(Mandatory)][System.Collections.IDictionary] $Preset)
     $lines = [System.Collections.Generic.List[string]]::new()
-    $lines.Add('Graph: the Windows account picker, or a browser.')
-    foreach ($s in (Get-MbcPresetSources -Preset $Preset)) { $lines.Add("$($script:MbcSourceNames[$s]): a browser window.") }
+    $lines.Add($(if ($IsWindows) { 'Graph: the Windows account picker, or a browser.' } else { 'Graph: a browser window.' }))
+    $sources = Get-MbcPresetSources -Preset $Preset
+    foreach ($s in $sources) {
+        if ($s -eq 'compliance' -and $sources -contains 'exo') { $lines.Add('Security & Compliance: usually reuses the Exchange Online sign-in, without asking.') }
+        else { $lines.Add("$($script:MbcSourceNames[$s]): a browser window.") }
+    }
     return , $lines.ToArray()
 }
 
@@ -173,6 +189,22 @@ function Get-MbcDeclaredCmdlets {
     param([Parameter(Mandatory)][System.Collections.IDictionary] $Preset, [Parameter(Mandatory)][string] $Source)
     if (-not $Preset.Contains('cmdlets') -or -not (Test-MbcIsDictionary $Preset['cmdlets']) -or -not $Preset['cmdlets'].Contains($Source)) { return , @() }
     return , [string[]]@($Preset['cmdlets'][$Source] | Where-Object { Test-MbcCmdletName -Name ([string]$_) })
+}
+
+$script:MbcBrokerSignOutSkipped = $false
+
+function Get-MbcBrokerAdvice {
+    # Lines for a person when Graph's broker sign-out couldn't run: what Windows may remember, and where.
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param([AllowEmptyString()][string] $Account)
+    if (-not $script:MbcBrokerSignOutSkipped -or -not $IsWindows) { return , @() }
+    $who = if ($Account) { $Account } else { 'the account' }
+    return , @(
+        "Windows may still remember $who for Graph PowerShell. If you chose it in the Windows account picker, the picker may offer it again."
+        'To remove it: Settings > Accounts > Email & accounts > Accounts used by other apps > the account > Remove.'
+        '(Graph''s own clean-up can''t run in the same PowerShell as Exchange Online: the two modules ship clashing sign-in libraries.)'
+    )
 }
 
 function Get-MbcSignInConsent {

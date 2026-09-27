@@ -195,9 +195,9 @@ function Invoke-MbcTuiSignIn {
             if ($switchAccount -and $State.Connection) { [void](Invoke-MbcDisconnectAll); $State.Connection = $null }
             $plan = Get-MbcSignInPlan -Preset $preset
             Write-MbcConsole -Line -Text ''
-            Write-MbcConsole -Line -Text "Signing in: $($plan.Count) sign-in$(if ($plan.Count -ne 1) { 's' }), one after another. Choose the same account each time."
+            Write-MbcConsole -Line -Text $(if ($plan.Count -gt 1) { 'Signing in, one after another. Choose the same account each time.' } else { 'Signing in:' })
             for ($i = 0; $i -lt $plan.Count; $i++) { Write-MbcConsole -Line -Text "  $($i + 1). $($plan[$i])" }
-            Write-MbcConsole -Line -Text 'Every session is read-only by construction. The view comes back when they are done.'
+            Write-MbcConsole -Line -Text 'Every session is read-only by construction. The view comes back when sign-in is done.'
             Write-MbcConsole -Line -Text ''
             $outcome.Connection = Connect-MbcSources -Preset $preset
         }

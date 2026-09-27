@@ -179,11 +179,25 @@ InModuleScope M365BaselineCheck {
             Mock Exit-MbcScreen { }
             Mock Invoke-MbcDisconnectAll { , @('Graph', 'Exchange Online') }
         }
-        It 'signs out of everything when the view closes after signing in' {
-            Mock Invoke-MbcTuiLoop { $State.Connection = [pscustomobject]@{ Account = 'operator@example.com' } }
-            $said = Start-BaselineCheck -OutputRoot (Join-Path $TestDrive 'q1') 6>&1 | ForEach-Object { [string]$_ }
+        It 'signs out of everything when the view closes after signing in, then says what to remove' {
+            Mock Invoke-MbcTuiLoop {
+                $State.Connection = [pscustomobject]@{
+                    Account = 'operator@example.com'
+                    Consent = [pscustomobject]@{ ClientAppId = '14d82eec-204b-4c2f-b7e8-296a70dab67e'; ClientName = 'Microsoft Graph Command Line Tools'; ServicePrincipalId = 'sp1'; Cause = $null
+                        Grants = @([pscustomobject]@{ Id = 'grant1'; Type = 'admin'; Scopes = @('User.Read'); WriteScopes = @() }) }
+                }
+            }
+            $saved = $script:MbcBrokerSignOutSkipped
+            $script:MbcBrokerSignOutSkipped = $true
+            try { $said = (Start-BaselineCheck -OutputRoot (Join-Path $TestDrive 'q1') 6>&1 | ForEach-Object { [string]$_ }) -join "`n" }
+            finally { $script:MbcBrokerSignOutSkipped = $saved }
             Should -Invoke Invoke-MbcDisconnectAll -Times 1 -Exactly
-            ($said -join "`n") | Should -BeLike '*Signed out of Graph, Exchange Online.*'
+            $said | Should -BeLike '*Signed out of Graph, Exchange Online.*'
+            $said | Should -BeLike "*-OAuth2PermissionGrantId 'grant1'*"
+            if ($IsWindows) { $said | Should -BeLike '*Accounts used by other apps*' }
+            else { $said | Should -Not -BeLike '*Accounts used by other apps*' -Because 'the Windows advice is for Windows' }
+            $said.Contains('System.String[]') | Should -BeFalse
+            $said.Contains('System.Object[]') | Should -BeFalse
         }
         It 'touches nothing when it never signed in' {
             Mock Invoke-MbcTuiLoop { }
