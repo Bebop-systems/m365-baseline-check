@@ -102,7 +102,7 @@ function Invoke-MbcDisconnectAll {
         foreach ($w in @($brokerWarnings)) { if ($w) { $problems.Add("Graph broker: $w") } }
         if (-not (Get-MgContext -ErrorAction SilentlyContinue)) { $closed.Add('Graph') }
     }
-    Write-MbcLog -Log $Log -EventName 'signout' -Data ([ordered]@{ closed = $closed.ToArray(); problems = $problems.ToArray() })
+    Write-MbcLog -Log $Log -EventName 'signout' -Data ([ordered]@{ closed = $closed.ToArray(); problems = $problems.ToArray(); brokerSignOut = $(if ($script:MbcBrokerSignOutSkipped) { 'skipped: Exchange Online loaded' } else { 'attempted' }) })
     return , $closed.ToArray()
 }
 
@@ -129,7 +129,9 @@ function Get-MbcPresetSources {
         $source = Get-MbcCheckSource -Check $check
         if ($source -in $script:MbcCmdletSources -and -not $sources.Contains($source)) { $sources.Add($source) }
     }
-    return , $sources.ToArray()
+    # Always Exchange Online first: Security & Compliance then reuses its sign-in, and the plan shown
+    # before signing in can say so truthfully.
+    return , [string[]]@($script:MbcCmdletSources | Where-Object { $sources.Contains($_) })
 }
 
 function Get-MbcSessionModuleName {
@@ -169,7 +171,7 @@ function Get-MbcSignInPlan {
     [OutputType([string[]])]
     param([Parameter(Mandatory)][System.Collections.IDictionary] $Preset)
     $lines = [System.Collections.Generic.List[string]]::new()
-    $lines.Add('Graph: the Windows account picker, or a browser.')
+    $lines.Add($(if ($IsWindows) { 'Graph: the Windows account picker, or a browser.' } else { 'Graph: a browser window.' }))
     $sources = Get-MbcPresetSources -Preset $Preset
     foreach ($s in $sources) {
         if ($s -eq 'compliance' -and $sources -contains 'exo') { $lines.Add('Security & Compliance: usually reuses the Exchange Online sign-in, without asking.') }
@@ -193,13 +195,12 @@ function Get-MbcBrokerAdvice {
     [CmdletBinding()]
     [OutputType([string[]])]
     param([AllowEmptyString()][string] $Account)
-    if (-not $script:MbcBrokerSignOutSkipped) { return , @() }
+    if (-not $script:MbcBrokerSignOutSkipped -or -not $IsWindows) { return , @() }
     $who = if ($Account) { $Account } else { 'the account' }
     return , @(
-        "Windows may still remember $who for Graph PowerShell: if you chose it in the Windows account picker,"
-        'the sessions are closed but the picker can offer it next time. To remove it: Settings > Accounts >'
-        'Email & accounts > Accounts used by other apps > the account > Remove. (Graph''s own clean-up of that'
-        'can''t run in the same PowerShell as Exchange Online: the two modules ship clashing sign-in libraries.)'
+        "Windows may still remember $who for Graph PowerShell. If you chose it in the Windows account picker, the picker may offer it again."
+        'To remove it: Settings > Accounts > Email & accounts > Accounts used by other apps > the account > Remove.'
+        '(Graph''s own clean-up can''t run in the same PowerShell as Exchange Online: the two modules ship clashing sign-in libraries.)'
     )
 }
 

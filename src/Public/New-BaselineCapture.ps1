@@ -27,7 +27,7 @@ function New-BaselineCapture {
     $connection = $null
     if (-not $Fetch) {
         $plan = Get-MbcSignInPlan -Preset $preset
-        Write-Information "Signing in, one after another. Choose the same account each time."
+        Write-Information $(if ($plan.Count -gt 1) { 'Signing in, one after another. Choose the same account each time.' } else { 'Signing in:' })
         foreach ($l in $plan) { Write-Information "  $l" }
         $connection = Connect-MbcSources -Preset $preset
         foreach ($d in $connection.Disclosure) { Write-Information $d }
@@ -38,6 +38,7 @@ function New-BaselineCapture {
         if ($connection) {
             $closed = Invoke-MbcDisconnectAll
             if (@($closed).Count) { Write-Information "Signed out of $(@($closed) -join ', ')." }
+            foreach ($a in (Get-MbcBrokerAdvice -Account ([string]$connection.Account))) { Write-Information $a }
         }
     }
     $draft = New-MbcBaselineDraft -Preset $preset -Collected $collected -Name $Name -Version $Version
