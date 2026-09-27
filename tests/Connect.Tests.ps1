@@ -224,7 +224,7 @@ InModuleScope M365BaselineCheck {
             if (-not (Get-Command -Name Get-MgContext -ErrorAction SilentlyContinue)) { function global:Get-MgContext { }; $script:MadeStandIns += 'Get-MgContext' }
         }
         AfterAll {
-            foreach ($f in $script:MadeStandIns) { Remove-Item -LiteralPath "Function:\global:$f" -ErrorAction SilentlyContinue }
+            foreach ($f in $script:MadeStandIns) { Remove-Item -LiteralPath "Function:\$f" -ErrorAction SilentlyContinue }
         }
         It "logs that no broker sign-out was needed when there was no Graph session" {
             Mock Get-Module { [pscustomobject]@{ Name = $Name } }

@@ -1,16 +1,32 @@
-function Get-MbcOutputRoot {
-    <#
-    .SYNOPSIS
-        The folder the tool writes under: -Root, else $env:M365BC_HOME, else ~/M365BaselineCheck. It
-        creates logs/, results/, presets/ and baselines/ inside it. Nothing is written anywhere else.
-    #>
+function Resolve-MbcOutputBase {
+    # The full path of the folder the tool would write under, without creating anything.
     [CmdletBinding()]
     [OutputType([string])]
     param([string] $Root)
     $base = if ($Root) { $Root } elseif ($env:M365BC_HOME) { $env:M365BC_HOME } else { Join-Path $HOME 'M365BaselineCheck' }
+    return $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($base)
+}
+
+function Get-MbcOutputRoot {
+    <#
+    .SYNOPSIS
+        The folder the tool writes under: -Root, else $env:M365BC_HOME, else ~/M365BaselineCheck. It
+        creates logs/, results/, presets/ and baselines/ inside it. Nothing is written anywhere else. On
+        macOS and Linux those folders, and the folder itself when the tool creates it, are private to
+        their owner (700).
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([string] $Root)
+    $base = Resolve-MbcOutputBase -Root $Root
+    if (-not (Test-Path -LiteralPath $base)) {
+        New-Item -ItemType Directory -Path $base -Force | Out-Null
+        Set-MbcPrivateMode -Path $base -Directory
+    }
     foreach ($sub in 'logs', 'results', 'presets', 'baselines') {
         $path = Join-Path $base $sub
         if (-not (Test-Path -LiteralPath $path)) { New-Item -ItemType Directory -Path $path -Force | Out-Null }
+        Set-MbcPrivateMode -Path $path -Directory
     }
     return (Resolve-Path -LiteralPath $base).ProviderPath
 }
@@ -44,6 +60,7 @@ function Write-MbcFileAtomic {
     $temp = '{0}.{1}.tmp' -f $full, [guid]::NewGuid().ToString('N').Substring(0, 8)
     try {
         [System.IO.File]::WriteAllText($temp, $Text, [System.Text.UTF8Encoding]::new($false))
+        Set-MbcPrivateMode -Path $temp
         [System.IO.File]::Move($temp, $full, $true)
     }
     finally {

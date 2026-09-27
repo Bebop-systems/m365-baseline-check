@@ -228,6 +228,9 @@ function Invoke-MbcTuiRun {
     $connection = $State.Connection
     $runId = New-MbcRunId
     $log = New-MbcRunLog -Directory (Join-Path $State.OutputRoot 'logs') -RunId $runId -Digest $b.Digest
+    # Plaintext until a locked export carries it away; quitting says what is left.
+    $State.PlaintextLogs.Add($log.Path)
+    $State.RunLogPath = $null
     Write-MbcLog -Log $log -EventName 'run.start' -Data ([ordered]@{ tool = $script:MbcToolVersion; mode = 'tui'; baselineName = $b.Name; baselineVersion = $b.Version; sealState = $b.SealState })
     if ($connection.PSObject.Properties['Disclosure']) { Write-MbcLog -Log $log -EventName 'disclosure' -Data @{ lines = @($connection.Disclosure) } }
 
@@ -268,6 +271,7 @@ function Invoke-MbcTuiRun {
         $State.ViewSource = 'this run'
         $State.ViewFromFile = $false
         $State.Exported = $false
+        $State.RunLogPath = $log.Path
         Open-MbcTuiResults -State $State
         $c = $run.Counts
         $tail = if ($c.Fail + $c.Error -eq 0) { 'Nothing needs attention.' } else { 'x exports it.' }
@@ -439,6 +443,7 @@ function Open-MbcTuiLocked {
         $State.ViewSource = [System.IO.Path]::GetFileName($Path)
         $State.ViewFromFile = $true
         $State.Exported = $true
+        $State.RunLogPath = $null
         Open-MbcTuiResults -State $State
         Set-MbcTuiMessage -State $State -Text "Opened $($State.ViewSource) with key $($opened.KeyId). It is in memory only." -Style 'ok'
     }
@@ -454,7 +459,7 @@ function Invoke-MbcTuiExport {
     if (-not $State.View) { Set-MbcTuiMessage -State $State -Text 'Nothing to export yet: run the checks first.' -Style 'warn'; return }
     $results = Join-Path $State.OutputRoot 'results'
     if ($State.ViewFromFile) {
-        $answer = Read-MbcLine -State $State -Title 'Write as plaintext' -Label "This result is already filed, locked. Write every part of it as plaintext into $results? Type yes to confirm."
+        $answer = Read-MbcLine -State $State -Title 'Write as plaintext' -Label "This result is already filed, locked. Write every part of it as plaintext into $results? The parts hold tenant configuration: keep them on this machine, share them only through an access-controlled location, and delete them when done (docs/handling-results.md). Type yes to confirm."
         if ($answer -cne 'yes') { Set-MbcTuiMessage -State $State -Text 'Nothing written.'; return }
         try {
             $files = Export-MbcRunFiles -Document $State.View.Document -Directory $results -NoLock
@@ -475,17 +480,25 @@ function Invoke-MbcTuiExport {
             $script:MbcSessionKey = $entered
         }
         else {
-            $confirm = Read-MbcLine -State $State -Title 'Export' -Label 'Write all five parts as plaintext, unencrypted? Type yes to confirm.'
+            $confirm = Read-MbcLine -State $State -Title 'Export' -Label 'Write all five parts as plaintext, unencrypted? They hold tenant configuration: keep them on this machine, share them only through an access-controlled location, and delete them when done (docs/handling-results.md). The run log stays in plaintext too. Type yes to confirm.'
             if ($confirm -cne 'yes') { Set-MbcTuiMessage -State $State -Text 'Not exported.'; return }
             $noLock = $true
         }
     }
     try {
-        $files = Export-MbcRunFiles -Document $State.View.Document -Directory $results -KeyText $keyText -NoLock:$noLock
+        $logPath = if ($noLock) { '' } else { [string]$State.RunLogPath }
+        $files = Export-MbcRunFiles -Document $State.View.Document -Directory $results -KeyText $keyText -NoLock:$noLock -LogPath $logPath
         $State.Exported = $true
         $names = @($files.Locked, $files.Summary | Where-Object { $_ } | ForEach-Object { Split-Path -Leaf $_ }) -join ' and '
         if ($noLock) { $names = 'five plaintext parts' }
-        Set-MbcTuiMessage -State $State -Text "Exported $names to $results." -Style 'ok'
+        # One status line: what matters first, the long folder path last.
+        $text = "Exported $names to $results."
+        if ($files.LogLocked) {
+            [void]$State.PlaintextLogs.Remove($logPath)
+            $State.RunLogPath = $null
+            $text = "Exported, run log locked inside and its plaintext deleted: $names, in $results."
+        }
+        Set-MbcTuiMessage -State $State -Text $text -Style 'ok'
     }
     catch { Set-MbcTuiMessage -State $State -Text $_.Exception.Message -Style 'bad' }
 }

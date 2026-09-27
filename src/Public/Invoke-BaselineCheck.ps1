@@ -5,9 +5,11 @@ function Invoke-BaselineCheck {
     .DESCRIPTION
         Refuses an unsealed or edited baseline unless -AllowUnsealed, and checks -ExpectedFingerprint
         before any network call. Signs in to Graph and to each Exchange source the baseline uses, reads
-        everything once, and prints the results grouped by admin centre. Every run leaves a verbose log
+        everything once, and prints the results grouped by admin centre. Every run keeps a verbose log
         in the output folder. -Export writes one locked bundle (the team key is asked for) plus a plain
-        summary.md; add -NoLock for plaintext parts instead.
+        summary.md, and moves the run log into the bundle; add -NoLock for plaintext parts instead.
+        Refuses an output folder that synchronises to the cloud (OneDrive, iCloud Drive, Dropbox, Google
+        Drive, Box) unless -AllowSyncedOutput. docs/handling-results.md covers storing results.
     .EXAMPLE
         Invoke-BaselineCheck ./baselines/core-tenant.json -ExpectedFingerprint a1b2c3d4e5f6 -Export
     #>
@@ -23,6 +25,7 @@ function Invoke-BaselineCheck {
         [securestring] $Key,
         [switch] $LockSummary,
         [switch] $SkipAppInventory,
+        [switch] $AllowSyncedOutput,
         [Parameter(DontShow)][scriptblock] $Fetch,
         [Parameter(DontShow)] $Connection,
         [Parameter(DontShow)][scriptblock] $Inventory
@@ -32,6 +35,9 @@ function Invoke-BaselineCheck {
     $b = Read-MbcBaseline -Path $Baseline
     Assert-MbcBaselineUsable -Baseline $b -AllowUnsealed:$AllowUnsealed -ExpectedFingerprint $ExpectedFingerprint
     $preset = $b.Document['preset']
+    # Before anything is written: the run log is plaintext while the run goes, so it mustn't land in a synced folder.
+    $refusal = Get-MbcSyncedRefusal -OutputRoot (Resolve-MbcOutputBase -Root $OutputRoot) -Allowed:$AllowSyncedOutput
+    if ($refusal) { throw $refusal }
 
     $keyText = $null
     if ($Export -and -not $NoLock) {
@@ -95,24 +101,31 @@ function Invoke-BaselineCheck {
     & $say ''
     foreach ($line in (Format-MbcInventoryNote -Inventory $view.Inventory -Glyphs $g)) { & $say "App inventory: $line" }
 
+    # The log is finished before an export, which may carry it into the locked file.
+    Write-MbcLog -Log $log -EventName 'run.end' -Data ([ordered]@{ pass = $run.Counts.Pass; fail = $run.Counts.Fail; error = $run.Counts.Error; resultDigest = $document['seal']['digest'] })
     $files = $null
     if ($Export) {
-        $files = Export-MbcRunFiles -Document $document -Directory (Join-Path $root 'results') -KeyText $keyText -NoLock:$NoLock -LockSummary:$LockSummary
+        $files = Export-MbcRunFiles -Document $document -Directory (Join-Path $root 'results') -KeyText $keyText -NoLock:$NoLock -LockSummary:$LockSummary -LogPath $log.Path
     }
-    Write-MbcLog -Log $log -EventName 'run.end' -Data ([ordered]@{ pass = $run.Counts.Pass; fail = $run.Counts.Fail; error = $run.Counts.Error; resultDigest = $document['seal']['digest'] })
+    $logLocked = $files -and $files.LogLocked
     & $say ''
     & $say ('{0} met, {1} not, {2} unverifiable.' -f $run.Counts.Pass, $run.Counts.Fail, $run.Counts.Error)
     if ($files) {
         $written = @($files.Locked, $files.Json, $files.Csv, $files.Apps, $files.Report, $files.Summary | Where-Object { $_ } | ForEach-Object { Split-Path -Leaf $_ }) -join ', '
         & $say "Written to $(Join-Path $root 'results'): $written"
     }
-    & $say "Log: $($log.Path)"
+    if ($logLocked) { & $say "Log: inside $(Split-Path -Leaf $files.Locked), and the plaintext copy is deleted." }
+    else { & $say (Get-MbcPlaintextLogNote -Path $log.Path) }
+    $stale = Get-MbcStaleNote -OutputRoot $root
+    if ($stale) { & $say $stale }
     $summary = [pscustomobject]@{
         PSTypeName  = 'Mbc.RunSummary'
         Summary     = '{0} met, {1} not, {2} unverifiable' -f $run.Counts.Pass, $run.Counts.Fail, $run.Counts.Error
         Fingerprint = $b.Fingerprint
         Written     = if ($files) { [string[]]@($files.Locked, $files.Json, $files.Csv, $files.Apps, $files.Report, $files.Summary | Where-Object { $_ }) } else { @() }
-        LogPath     = $log.Path
+        # $null once the log is inside the locked file.
+        LogPath     = if ($logLocked) { $null } else { $log.Path }
+        LogLocked   = [bool]$logLocked
         Counts      = $run.Counts
         Results     = $view.Results
         Inventory   = $view.Inventory

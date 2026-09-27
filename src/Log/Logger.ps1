@@ -57,6 +57,7 @@ function New-MbcRunLog {
     )
     $path = Join-Path $Directory "run-$RunId.jsonl"
     [System.IO.File]::WriteAllText($path, '', [System.Text.UTF8Encoding]::new($false))
+    Set-MbcPrivateMode -Path $path
     $fingerprint = if ($Digest.Length -ge 12) { $Digest.Substring(0, 12) } else { $Digest }
     return [pscustomobject]@{ PSTypeName = 'Mbc.Log'; Path = $path; RunId = $RunId; Digest = $Digest; Fingerprint = $fingerprint; State = @{ Seq = 0 } }
 }

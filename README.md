@@ -20,7 +20,8 @@ The code in this repository was written by Claude (Anthropic's model), under hum
 
 ## Requirements
 
-- PowerShell 7.4 or later.
+- PowerShell 7.4 or later, on macOS, Windows or Linux. On a Mac: `brew install powershell`, then
+  `pwsh` in Terminal or iTerm2.
 - `Microsoft.Graph.Authentication` 2.x. `ExchangeOnlineManagement` 3.x when a baseline uses Exchange
   Online or Security & Compliance checks.
 
@@ -110,13 +111,27 @@ New-ResultKey                                   # once per team; keep it in the 
 Unlock-Result ./results/result-<time>.locked    # to memory; -OutputDirectory to write plaintext
 ```
 
-Logs are in `~/M365BaselineCheck/logs/`, one JSON-lines file per run.
+Each run writes a JSON-lines log to `~/M365BaselineCheck/logs/` as it goes. A locked export moves it
+into the bundle and deletes the plaintext copy; otherwise the tool says where it stays.
+
+### Handling results
+
+Results are confidential: a map of one tenant's weak spots, though no credentials or end-user content.
+[docs/handling-results.md](docs/handling-results.md) is the guide, mapped to SOC 2. In short:
+
+- Export locked, and keep the team key only in the password manager.
+- Plaintext only on an encrypted disk (FileVault on a Mac, BitLocker on Windows), never in a synced
+  folder. The tool refuses an output folder in iCloud Drive, OneDrive, Dropbox, Google Drive or Box
+  unless you pass `-AllowSyncedOutput`.
+- Share `summary.md`, which is redacted by construction, rather than the result itself.
+- Delete plaintext when the work is done; the tool points out anything older than 30 days.
+- On macOS and Linux the tool's folders and files are readable by you alone.
 
 ## Environment
 
 - `NO_COLOR=1`: no colour. The selection and every verdict still read without it.
 - `M365BC_ASCII=1`: ASCII drawing, for consoles that can't show the glyphs.
-- `M365BC_HOME`: the output folder.
+- `M365BC_HOME`: the output folder. It must stay out of synced folders (see *Handling results*).
 
 When the console can't host the interactive view (output redirected, no virtual terminal),
 `Start-BaselineCheck` falls back to plain output.
@@ -135,6 +150,20 @@ Security & Compliance sessions expose.
 pwsh -NoProfile -File tools/Invoke-Gate.ps1          # every test, offline, and the analyser
 pwsh -NoProfile -File tools/Export-TuiSnapshots.ps1  # every screen as text, in docs/tui-snapshots
 ```
+
+### Testing on a Mac
+
+CI runs the tests on Windows and Linux; a Mac run by hand covers the rest. In Terminal or iTerm2:
+
+1. `fdesetup status` says FileVault is on.
+2. `pwsh -NoProfile -File tools/Invoke-Gate.ps1` passes, including the permission tests Windows skips.
+3. `pwsh -NoProfile -File tools/Start-Demo.ps1`: the glyphs, colours and keys look right; resizing
+   redraws.
+4. A live run against a test tenant: Graph opens the browser (there's no Windows account picker on a
+   Mac), Exchange Online opens it again, and quitting signs out of both.
+5. `ls -la ~/M365BaselineCheck ~/M365BaselineCheck/logs` shows `drwx------` and `-rw-------`.
+6. `Start-BaselineCheck -OutputRoot ~/Library/Mobile\ Documents/x` is refused, and so is a folder
+   under `~/Library/CloudStorage/` if OneDrive or Google Drive is installed.
 
 ## Licence
 

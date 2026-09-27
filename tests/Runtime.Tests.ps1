@@ -114,6 +114,16 @@ InModuleScope M365BaselineCheck {
             @($script:Frames | Where-Object { $_ -like '*Team key, to lock the export*' } | Select-Object -Last 1) | Should -Not -BeLike "*$($key.Substring(12))*" -Because 'a masked prompt never shows the key'
             $s.ViewFromFile | Should -BeTrue
             $s.Quit | Should -BeTrue -Because 'a result opened from a file needs no export before quitting'
+            @(Get-ChildItem (Join-Path $s.OutputRoot 'logs') -File).Count | Should -Be 0 -Because 'the locked export carried the run log away'
+            $s.PlaintextLogs.Count | Should -Be 0
+            @($script:Frames | Where-Object { $_ -like '*Exported, run log locked inside and its plaintext deleted: result-*' }).Count | Should -BeGreaterThan 0
+        }
+
+        It 'keeps the run log, and counts it, when the export is plaintext' {
+            $s = Start-Session @('r', 'x', '<Enter>', 'yes', '<Enter>', 'q')
+            @(Get-ChildItem (Join-Path $s.OutputRoot 'logs') -File).Count | Should -Be 1
+            $s.PlaintextLogs.Count | Should -Be 1
+            @($script:Frames | Where-Object { $_ -like '*Write all five parts as plaintext*docs/handling-results.md*' }).Count | Should -BeGreaterThan 0
         }
 
         It 'counts the requests it will make, so the bar moves in steps' {
@@ -203,6 +213,26 @@ InModuleScope M365BaselineCheck {
             Mock Invoke-MbcTuiLoop { }
             Start-BaselineCheck -OutputRoot (Join-Path $TestDrive 'q2') 6>$null
             Should -Invoke Invoke-MbcDisconnectAll -Times 0 -Exactly
+        }
+        It 'says, once the view is gone, where this session''s plaintext run logs stay' {
+            Mock Invoke-MbcTuiLoop {
+                $p = Join-Path $State.OutputRoot 'logs/run-1.jsonl'
+                [System.IO.File]::WriteAllText($p, 'x')
+                $State.PlaintextLogs.Add($p)
+            }
+            $said = (Start-BaselineCheck -OutputRoot (Join-Path $TestDrive 'q3') 6>&1 | ForEach-Object { [string]$_ }) -join "`n"
+            $said | Should -BeLike '*The run log stays in plaintext at *run-1.jsonl*'
+        }
+        It 'refuses an output folder that synchronises to the cloud before drawing anything' {
+            Mock Invoke-MbcTuiLoop { }
+            $saved = $env:OneDrive
+            $env:OneDrive = Join-Path $TestDrive 'OneDrive-tui'
+            try {
+                { Start-BaselineCheck -OutputRoot (Join-Path $env:OneDrive 'M365BaselineCheck') } | Should -Throw '*synchronises to OneDrive*'
+                Should -Invoke Enter-MbcScreen -Times 0 -Exactly
+                Test-Path $env:OneDrive | Should -BeFalse
+            }
+            finally { $env:OneDrive = $saved }
         }
     }
 
