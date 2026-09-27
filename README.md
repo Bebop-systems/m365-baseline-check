@@ -22,11 +22,15 @@ The code in this repository was written by Claude (Anthropic's model), under hum
 
 - PowerShell 7.4 or later, on macOS, Windows or Linux. On a Mac: `brew install powershell`, then
   `pwsh` in Terminal or iTerm2.
-- `Microsoft.Graph.Authentication` 2.x. `ExchangeOnlineManagement` 3.x when a baseline uses Exchange
-  Online or Security & Compliance checks.
+- `Microsoft.Graph.Authentication` 2.38.1 or later below 3.0, and `ExchangeOnlineManagement` 3.10.0
+  or later below 4.0 when a baseline uses Exchange Online or Security & Compliance checks. Those are
+  the tested ranges: the tool loads nothing outside them, and on Windows nothing without Microsoft's
+  valid signature, because these modules hold an administrator's token while they run. The sign-in
+  disclosure names the versions used, and marks any newer than tested.
 
 ```powershell
-Install-Module Microsoft.Graph.Authentication, ExchangeOnlineManagement -Scope CurrentUser
+Install-Module Microsoft.Graph.Authentication -RequiredVersion 2.38.1 -Scope CurrentUser
+Install-Module ExchangeOnlineManagement -RequiredVersion 3.10.0 -Scope CurrentUser
 ```
 
 ## Try it without a tenant
@@ -150,6 +154,24 @@ Security & Compliance sessions expose.
 pwsh -NoProfile -File tools/Invoke-Gate.ps1          # every test, offline, and the analyser
 pwsh -NoProfile -File tools/Export-TuiSnapshots.ps1  # every screen as text, in docs/tui-snapshots
 ```
+
+### Releases and verifying
+
+A tag `v<ModuleVersion>` runs `.github/workflows/release.yml`: the gate, then
+`tools/Build-Release.ps1`, which zips only the module's tracked files and writes `SHA256SUMS.txt`. CI
+attests the zip's build provenance, and the release carries both files. Before using a release:
+
+```powershell
+(Get-FileHash ./M365BaselineCheck-<version>.zip -Algorithm SHA256).Hash   # matches SHA256SUMS.txt
+gh attestation verify ./M365BaselineCheck-<version>.zip --repo <owner>/m365-baseline-check
+```
+
+The attestation proves the zip was built by this repository's workflow from the tagged commit.
+Authenticode signing happens in the same workflow once the repository has the secrets
+`SIGNING_CERT_PFX_BASE64` (the code-signing certificate as base64 PFX) and `SIGNING_CERT_PASSWORD`.
+Every `.ps1`, `.psm1` and `.psd1` is then signed with SHA-256 and a timestamp; check one with
+`Get-AuthenticodeSignature ./M365BaselineCheck/M365BaselineCheck.psd1`. Until then releases are
+unsigned and marked as pre-releases while the version is 0.x.
 
 ### Testing on a Mac
 

@@ -113,6 +113,13 @@ InModuleScope M365BaselineCheck {
             (Connect-MbcSources -Preset $graphOnly -Transport $script:Transport).Failed.Count | Should -Be 0
         }
 
+        It 'records an Exchange module outside the pinned range as a source not connected, and carries on' {
+            Mock Import-MbcSourceModule { if ($Name -eq 'ExchangeOnlineManagement') { throw 'This tool runs with ExchangeOnlineManagement 3.10.0 or later, below 4.0.' } }
+            $c = Connect-MbcSources -Preset $script:Preset -Transport $script:Transport
+            $c.Failed['exo'] | Should -BeLike '*3.10.0 or later, below 4.0*'
+            Should -Invoke Invoke-MbcConnectExchange -Times 0 -Exactly
+        }
+
         It 'says so when roles could not be read' {
             $noRoles = { param($Uri) [pscustomobject]@{ Status = 403; Body = '{}'; RetryAfter = $null } }
             $c = Connect-MbcSources -Preset $script:Preset -Transport $noRoles

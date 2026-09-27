@@ -1,0 +1,67 @@
+name: release
+
+# A tag v<ModuleVersion> builds the release: the gate, then the zip and its SHA-256 checksum, signed
+# with Authenticode when the signing secrets exist, with a build provenance attestation, published as a
+# GitHub release. Actions are pinned to commit SHAs because this workflow can write and holds the key.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Install Pester and PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          Set-PSRepository PSGallery -InstallationPolicy Trusted
+          Install-Module Pester -MinimumVersion 5.5.0 -Scope CurrentUser -Force
+          Install-Module PSScriptAnalyzer -Scope CurrentUser -Force
+      - name: Gate
+        shell: pwsh
+        run: ./tools/Invoke-Gate.ps1
+      - name: Build, and sign when a certificate is configured
+        shell: pwsh
+        env:
+          SIGNING_CERT_PFX_BASE64: ${{ secrets.SIGNING_CERT_PFX_BASE64 }}
+          SIGNING_CERT_PASSWORD: ${{ secrets.SIGNING_CERT_PASSWORD }}
+        run: |
+          $build = @{ Tag = $env:GITHUB_REF_NAME }
+          if ($env:SIGNING_CERT_PFX_BASE64) {
+            $bytes = [Convert]::FromBase64String($env:SIGNING_CERT_PFX_BASE64)
+            $build.Certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($bytes, $env:SIGNING_CERT_PASSWORD)
+          }
+          ./tools/Build-Release.ps1 @build
+          "SIGNED=$([bool]$build.Certificate)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: out/release/M365BaselineCheck-*.zip
+      - name: Publish the release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $zip = (Get-ChildItem out/release -Filter 'M365BaselineCheck-*.zip').Name
+          $signed = if ($env:SIGNED -eq 'True') { 'Every script file is Authenticode-signed.' } else { 'This release is not Authenticode-signed.' }
+          $notes = @(
+            $signed, '',
+            'Verify before use:', '',
+            '```powershell',
+            "(Get-FileHash ./$zip -Algorithm SHA256).Hash   # compare with SHA256SUMS.txt",
+            "gh attestation verify ./$zip --repo $env:GITHUB_REPOSITORY",
+            '```', '',
+            'Then see README, "Releases and verifying".'
+          ) -join "`n"
+          $pre = if ($tag.StartsWith('v0.')) { @('--prerelease') } else { @() }
+          gh release create $tag "out/release/$zip" out/release/SHA256SUMS.txt --title "M365 Baseline Check $($tag.Substring(1))" --notes $notes @pre
