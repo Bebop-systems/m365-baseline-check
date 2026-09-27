@@ -97,7 +97,10 @@ function Get-MbcSyncedRoots {
     }
     # OneDrive's older layout, before macOS File Provider: ~/OneDrive, ~/OneDrive - Contoso.
     if (Test-Path -LiteralPath $HomePath -PathType Container) {
-        foreach ($d in (Get-ChildItem -LiteralPath $HomePath -Directory -Filter 'OneDrive*' -ErrorAction SilentlyContinue)) { & $add 'OneDrive' $d.FullName }
+        foreach ($d in (Get-ChildItem -LiteralPath $HomePath -Directory -Filter 'OneDrive*' -ErrorAction SilentlyContinue)) {
+            # Exactly 'OneDrive' or 'OneDrive - Org'; 'OneDriveOld-archive' is someone's own folder.
+            if ($d.Name -eq 'OneDrive' -or $d.Name.StartsWith('OneDrive - ', [StringComparison]::OrdinalIgnoreCase)) { & $add 'OneDrive' $d.FullName }
+        }
     }
     # Google Drive for desktop mounts a drive of its own on macOS.
     if (Test-Path -LiteralPath '/Volumes/GoogleDrive' -PathType Container) { & $add 'Google Drive' '/Volumes/GoogleDrive' }
@@ -118,9 +121,9 @@ function Get-MbcSyncedLocation {
     # Both as written and with links followed: ~/work may be a link into ~/Library/CloudStorage.
     $paths = @((& $norm ([System.IO.Path]::GetFullPath($Path))), (& $norm (Resolve-MbcRealPath -Path $Path)))
     foreach ($r in $Roots) {
-        $roots = @((& $norm ([System.IO.Path]::GetFullPath($r.Path))), (& $norm (Resolve-MbcRealPath -Path $r.Path)))
+        $rootForms = @((& $norm ([System.IO.Path]::GetFullPath($r.Path))), (& $norm (Resolve-MbcRealPath -Path $r.Path)))
         foreach ($full in $paths) {
-            foreach ($root in $roots) {
+            foreach ($root in $rootForms) {
                 # Case-insensitive: the default file systems on Windows and macOS are.
                 if ($full.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) { return $r.Name }
             }

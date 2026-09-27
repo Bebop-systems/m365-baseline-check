@@ -33,8 +33,11 @@ InModuleScope M365BaselineCheck {
         It 'finds OneDrive''s older layout in the home folder' {
             $h = Join-Path $TestDrive 'home-old'
             New-Item -ItemType Directory -Path (Join-Path $h 'OneDrive - Contoso') -Force | Out-Null
+            New-Item -ItemType Directory -Path (Join-Path $h 'OneDriveOld-archive') -Force | Out-Null
             $roots = Get-MbcSyncedRoots -HomePath $h
             Get-MbcSyncedLocation -Path (Join-Path $h 'OneDrive - Contoso/M365BaselineCheck') -Roots $roots | Should -Be 'OneDrive'
+            # The environment variables can name a real OneDrive elsewhere; only this home's folders matter here.
+            @($roots | Where-Object { $_.Path -like "*OneDriveOld-archive*" }).Count | Should -Be 0
         }
         It 'follows a link into a synced folder' -Skip:$IsWindows {
             $link = Join-Path $script:FakeHome 'work'

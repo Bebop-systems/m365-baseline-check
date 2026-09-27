@@ -133,7 +133,7 @@ InModuleScope M365BaselineCheck {
             $logPath = Join-Path (New-Dir 'twice-logs') 'run-1.jsonl'
             [System.IO.File]::WriteAllText($logPath, 'first')
             $files = Export-MbcRunFiles -Document $script:Doc -Directory $dir -KeyText $script:KeyText -LogPath $logPath
-            { Export-MbcRunFiles -Document $script:Doc -Directory $dir -KeyText $script:KeyText -LogPath $logPath } | Should -Throw '*already exported, locked*Nothing was replaced.*'
+            { Export-MbcRunFiles -Document $script:Doc -Directory $dir -KeyText $script:KeyText -LogPath $logPath } | Should -Throw '*already exists: this run was exported, locked*Nothing was replaced.*'
             (Open-MbcLockedResult -Path $files.Locked -KeyText $script:KeyText).Files['run.jsonl'] | Should -Be 'first'
         }
         It 'leaves the run log where it is with a plaintext export' {

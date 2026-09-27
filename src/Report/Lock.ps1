@@ -261,7 +261,7 @@ function Export-MbcRunFiles {
     $key = ConvertFrom-MbcTeamKeyText -Text $KeyText
     $files.Locked = Join-Path $Directory "result-$stamp.locked"
     # A run is locked once. Replacing its bundle could drop the run log it carries, whose plaintext is gone.
-    if (Test-Path -LiteralPath $files.Locked) { throw "This run is already exported, locked, as $(Split-Path -Leaf $files.Locked). Nothing was replaced." }
+    if (Test-Path -LiteralPath $files.Locked) { throw "$(Split-Path -Leaf $files.Locked) already exists: this run was exported, locked, or another finished in the same second. Nothing was replaced." }
     $b = $Document['baseline']
     $header = [ordered]@{
         baseline = [ordered]@{ name = [string]$b['name']; version = [long]$b['version']; fingerprint = [string]$b['fingerprint'] }
