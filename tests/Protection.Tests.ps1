@@ -30,6 +30,17 @@ InModuleScope M365BaselineCheck {
             Get-MbcSyncedLocation -Path (Join-Path $script:FakeHome 'Dropbox-archive') -Roots $script:Roots | Should -BeNullOrEmpty
             Get-MbcSyncedLocation -Path (Join-Path $script:FakeHome 'M365BaselineCheck') -Roots $script:Roots | Should -BeNullOrEmpty
         }
+        It 'finds OneDrive''s older layout in the home folder' {
+            $h = Join-Path $TestDrive 'home-old'
+            New-Item -ItemType Directory -Path (Join-Path $h 'OneDrive - Contoso') -Force | Out-Null
+            $roots = Get-MbcSyncedRoots -HomePath $h
+            Get-MbcSyncedLocation -Path (Join-Path $h 'OneDrive - Contoso/M365BaselineCheck') -Roots $roots | Should -Be 'OneDrive'
+        }
+        It 'follows a link into a synced folder' -Skip:$IsWindows {
+            $link = Join-Path $script:FakeHome 'work'
+            New-Item -ItemType SymbolicLink -Path $link -Target (Join-Path $script:FakeHome 'Library/CloudStorage/OneDrive-Contoso') | Out-Null
+            Get-MbcSyncedLocation -Path (Join-Path $link 'M365BaselineCheck') -Roots $script:Roots | Should -Be 'OneDrive'
+        }
         It 'refuses a synced output folder with what to do instead, unless allowed' {
             $saved = $env:OneDrive
             $env:OneDrive = Join-Path $TestDrive 'OneDrive'

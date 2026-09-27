@@ -259,6 +259,9 @@ function Export-MbcRunFiles {
     }
 
     $key = ConvertFrom-MbcTeamKeyText -Text $KeyText
+    $files.Locked = Join-Path $Directory "result-$stamp.locked"
+    # A run is locked once. Replacing its bundle could drop the run log it carries, whose plaintext is gone.
+    if (Test-Path -LiteralPath $files.Locked) { throw "This run is already exported, locked, as $(Split-Path -Leaf $files.Locked). Nothing was replaced." }
     $b = $Document['baseline']
     $header = [ordered]@{
         baseline = [ordered]@{ name = [string]$b['name']; version = [long]$b['version']; fingerprint = [string]$b['fingerprint'] }
@@ -268,7 +271,6 @@ function Export-MbcRunFiles {
     $withLog = $LogPath -and (Test-Path -LiteralPath $LogPath -PathType Leaf)
     if ($withLog) { $parts['run.jsonl'] = [System.IO.File]::ReadAllText($LogPath) }
     $envelope = Protect-MbcPayload -KeyBytes $key.Bytes -Header $header -PayloadText (ConvertTo-MbcCanonicalJson -Value $parts)
-    $files.Locked = Join-Path $Directory "result-$stamp.locked"
     Write-MbcFileAtomic -Path $files.Locked -Text (ConvertTo-MbcPrettyJson -Value $envelope)
     if ($withLog) {
         # The bundle is written and holds the log; the plaintext copy has no reason to stay.

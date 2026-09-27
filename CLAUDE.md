@@ -197,11 +197,11 @@ is the guide for people and maps each rule to SOC 2 (CC6.1, CC6.2–6.3, CC6.5, 
 
 | Control | Where | What it guarantees |
 |---|---|---|
-| Private files | `Set-MbcPrivateMode`, called by `Get-MbcOutputRoot`, `Write-MbcFileAtomic`, `New-MbcRunLog` | On macOS and Linux, folders 700 and files 600. Anything new that writes must go through these. |
-| No synced output | `Get-MbcSyncedRefusal`, before anything is written in `Invoke-BaselineCheck` and `Start-BaselineCheck` | The run log (plaintext as it's written) never lands in iCloud Drive, OneDrive, Dropbox, Google Drive or Box without `-AllowSyncedOutput`. |
-| Log locked away | `Export-MbcRunFiles -LogPath` | A locked export carries `run.jsonl` inside the bundle and deletes the plaintext log. `run.end` is logged before the export. |
-| Plaintext said aloud | `Get-MbcPlaintextLogNote`, the export prompts | Whenever plaintext stays on disk, the operator is told where and what to do. |
-| Retention nudge | `Get-MbcStaleNote` (30 days) | Old plaintext is pointed out at the start and end. The tool never deletes for the operator. |
+| Private files | `New-MbcPrivateFile` (via `Write-MbcFileAtomic`, `New-MbcRunLog`), `Set-MbcPrivateMode` (via `Get-MbcOutputRoot`) | On macOS and Linux, files are created 600 and the tool's folders are 700. Anything new that writes must go through these. |
+| No synced output | `Get-MbcSyncedRefusal`, before anything is written in `Invoke-BaselineCheck` and `Start-BaselineCheck`; `Unlock-Result -OutputDirectory` | Plaintext never lands in iCloud Drive, OneDrive, Dropbox, Google Drive or Box (links followed) without `-AllowSyncedOutput`. |
+| Log locked away | `Export-MbcRunFiles -LogPath` | A locked export carries `run.jsonl` inside the bundle and deletes the plaintext log. `run.end` is logged before the export. A bundle is never replaced, so a log can't be dropped by exporting twice. |
+| Plaintext said aloud | `Get-MbcPlaintextLogNote`, the export prompts | When a run ends or stops with its log in plaintext, and when the view quits, the operator is told where and what to do. |
+| Retention nudge | `Get-MbcStaleNote` (30 days) | Old plaintext is pointed out at the end of a plain run and when the view opens and closes. The tool never deletes for the operator. |
 
 Baselines and presets are Internal (expected values, no tenant identity) and aren't held to the
 synced-folder rule; teams keep them in a private repository.

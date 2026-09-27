@@ -93,6 +93,14 @@ InModuleScope M365BaselineCheck {
             ($lines -join "`n") | Should -BeLike '*The run log stays in plaintext at *docs/handling-results.md*'
         }
 
+        It 'says where the log stays when the run stops, then stops with the reason' {
+            Mock Connect-MbcSources { throw 'Sign-in was cancelled.' }
+            $said = [System.Collections.Generic.List[string]]::new()
+            { Invoke-BaselineCheck -Baseline $script:Sealed -OutputRoot $script:Out -Inventory $script:Inv 6>&1 |
+                    ForEach-Object { if ($_ -is [System.Management.Automation.InformationRecord]) { $said.Add([string]$_.MessageData) } } } | Should -Throw '*Sign-in was cancelled.*'
+            ($said -join "`n") | Should -BeLike '*The run log stays in plaintext at *'
+        }
+
         It 'returns no log path once the log is locked away' {
             $key = ConvertTo-SecureString -String (New-MbcTeamKeyText) -AsPlainText -Force
             $r = Invoke-Test @{ Baseline = $script:Sealed; Export = $true; Key = $key }

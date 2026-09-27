@@ -128,6 +128,14 @@ InModuleScope M365BaselineCheck {
             Unlock-Result -Path $files.Locked -Key $secure -OutputDirectory $out -InformationAction SilentlyContinue | Out-Null
             Test-Path (Join-Path $out 'run-20260926T141200Z.jsonl') | Should -BeTrue
         }
+        It 'never replaces a locked bundle, so a second export cannot drop the log it carries' {
+            $dir = New-Dir 'twice'
+            $logPath = Join-Path (New-Dir 'twice-logs') 'run-1.jsonl'
+            [System.IO.File]::WriteAllText($logPath, 'first')
+            $files = Export-MbcRunFiles -Document $script:Doc -Directory $dir -KeyText $script:KeyText -LogPath $logPath
+            { Export-MbcRunFiles -Document $script:Doc -Directory $dir -KeyText $script:KeyText -LogPath $logPath } | Should -Throw '*already exported, locked*Nothing was replaced.*'
+            (Open-MbcLockedResult -Path $files.Locked -KeyText $script:KeyText).Files['run.jsonl'] | Should -Be 'first'
+        }
         It 'leaves the run log where it is with a plaintext export' {
             $logPath = Join-Path (New-Dir 'plain-log') 'run-1.jsonl'
             [System.IO.File]::WriteAllText($logPath, 'x')

@@ -119,6 +119,15 @@ InModuleScope M365BaselineCheck {
             @($script:Frames | Where-Object { $_ -like '*Exported, run log locked inside and its plaintext deleted: result-*' }).Count | Should -BeGreaterThan 0
         }
 
+        It 'exports a run locked once: a second x replaces nothing and the log stays in the bundle' {
+            $key = New-MbcTeamKeyText
+            $s = Start-Session @('r', 'x', $key, '<Enter>', 'x', 'q')
+            $locked = @(Get-ChildItem (Join-Path $s.OutputRoot 'results') -Filter '*.locked')
+            $locked.Count | Should -Be 1
+            (Open-MbcLockedResult -Path $locked[0].FullName -KeyText $key).Files['run.jsonl'] | Should -BeLike '*"event":"run.end"*'
+            @($script:Frames | Where-Object { $_ -like '*Already exported, locked, as result-*Nothing written.*' }).Count | Should -BeGreaterThan 0
+        }
+
         It 'keeps the run log, and counts it, when the export is plaintext' {
             $s = Start-Session @('r', 'x', '<Enter>', 'yes', '<Enter>', 'q')
             @(Get-ChildItem (Join-Path $s.OutputRoot 'logs') -File).Count | Should -Be 1

@@ -19,6 +19,50 @@ function Set-MbcPrivateMode {
     catch { Write-Verbose "Couldn't restrict permissions on ${Path}: $($_.Exception.Message)" }
 }
 
+function New-MbcPrivateFile {
+    <#
+    .SYNOPSIS
+        Writes a file holding UTF-8 text without a BOM, replacing any file there. On macOS and Linux a
+        new file is created 600, so it is never readable by anyone else, even for a moment; a replaced
+        one is set to 600.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string] $Path, [AllowEmptyString()][string] $Text = '')
+    $existed = [System.IO.File]::Exists($Path)
+    $options = [System.IO.FileStreamOptions]::new()
+    $options.Mode = [System.IO.FileMode]::Create
+    $options.Access = [System.IO.FileAccess]::Write
+    if (-not $IsWindows) { $options.UnixCreateMode = [System.IO.UnixFileMode]'UserRead, UserWrite' }
+    $stream = [System.IO.FileStream]::new($Path, $options)
+    try {
+        $bytes = [System.Text.UTF8Encoding]::new($false).GetBytes($Text)
+        $stream.Write($bytes, 0, $bytes.Length)
+    }
+    finally { $stream.Dispose() }
+    if ($existed) { Set-MbcPrivateMode -Path $Path }
+}
+
+function Resolve-MbcRealPath {
+    # A full path with every symbolic link along it followed, as far as the path exists.
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([Parameter(Mandatory)][string] $Path)
+    $full = [System.IO.Path]::GetFullPath($Path)
+    $root = [System.IO.Path]::GetPathRoot($full)
+    $current = $root
+    foreach ($part in $full.Substring($root.Length).Split([char[]]@('/', '\'), [StringSplitOptions]::RemoveEmptyEntries)) {
+        $current = Join-Path $current $part
+        # Links are followed only while the path exists; the rest is appended as written.
+        if (-not (Test-Path -LiteralPath $current)) { continue }
+        $item = Get-Item -LiteralPath $current -Force
+        if ($item.LinkTarget) {
+            $target = $item.ResolveLinkTarget($true)
+            if ($target) { $current = $target.FullName }
+        }
+    }
+    return $current
+}
+
 function Get-MbcSyncedRoots {
     # Folders that synchronise to the cloud, as { Name; Path }, for the operating system this runs on.
     [CmdletBinding()]
@@ -51,6 +95,12 @@ function Get-MbcSyncedRoots {
         $p = Join-Path $HomePath $pair[1]
         if (Test-Path -LiteralPath $p -PathType Container) { & $add $pair[0] $p }
     }
+    # OneDrive's older layout, before macOS File Provider: ~/OneDrive, ~/OneDrive - Contoso.
+    if (Test-Path -LiteralPath $HomePath -PathType Container) {
+        foreach ($d in (Get-ChildItem -LiteralPath $HomePath -Directory -Filter 'OneDrive*' -ErrorAction SilentlyContinue)) { & $add 'OneDrive' $d.FullName }
+    }
+    # Google Drive for desktop mounts a drive of its own on macOS.
+    if (Test-Path -LiteralPath '/Volumes/GoogleDrive' -PathType Container) { & $add 'Google Drive' '/Volumes/GoogleDrive' }
     return , $roots.ToArray()
 }
 
@@ -64,11 +114,17 @@ function Get-MbcSyncedLocation {
     [OutputType([string])]
     param([Parameter(Mandatory)][string] $Path, [object[]] $Roots = (Get-MbcSyncedRoots))
     $sep = [System.IO.Path]::DirectorySeparatorChar
-    $full = [System.IO.Path]::GetFullPath($Path).TrimEnd('/', '\') + $sep
+    $norm = { param($p) $p.TrimEnd('/', '\') + $sep }
+    # Both as written and with links followed: ~/work may be a link into ~/Library/CloudStorage.
+    $paths = @((& $norm ([System.IO.Path]::GetFullPath($Path))), (& $norm (Resolve-MbcRealPath -Path $Path)))
     foreach ($r in $Roots) {
-        $root = [System.IO.Path]::GetFullPath($r.Path).TrimEnd('/', '\') + $sep
-        # Case-insensitive: the default file systems on Windows and macOS are.
-        if ($full.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) { return $r.Name }
+        $roots = @((& $norm ([System.IO.Path]::GetFullPath($r.Path))), (& $norm (Resolve-MbcRealPath -Path $r.Path)))
+        foreach ($full in $paths) {
+            foreach ($root in $roots) {
+                # Case-insensitive: the default file systems on Windows and macOS are.
+                if ($full.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) { return $r.Name }
+            }
+        }
     }
     return $null
 }

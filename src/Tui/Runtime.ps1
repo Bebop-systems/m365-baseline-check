@@ -230,7 +230,6 @@ function Invoke-MbcTuiRun {
     $log = New-MbcRunLog -Directory (Join-Path $State.OutputRoot 'logs') -RunId $runId -Digest $b.Digest
     # Plaintext until a locked export carries it away; quitting says what is left.
     $State.PlaintextLogs.Add($log.Path)
-    $State.RunLogPath = $null
     Write-MbcLog -Log $log -EventName 'run.start' -Data ([ordered]@{ tool = $script:MbcToolVersion; mode = 'tui'; baselineName = $b.Name; baselineVersion = $b.Version; sealState = $b.SealState })
     if ($connection.PSObject.Properties['Disclosure']) { Write-MbcLog -Log $log -EventName 'disclosure' -Data @{ lines = @($connection.Disclosure) } }
 
@@ -271,6 +270,7 @@ function Invoke-MbcTuiRun {
         $State.ViewSource = 'this run'
         $State.ViewFromFile = $false
         $State.Exported = $false
+        $State.LockedAs = $null
         $State.RunLogPath = $log.Path
         Open-MbcTuiResults -State $State
         $c = $run.Counts
@@ -459,13 +459,17 @@ function Invoke-MbcTuiExport {
     if (-not $State.View) { Set-MbcTuiMessage -State $State -Text 'Nothing to export yet: run the checks first.' -Style 'warn'; return }
     $results = Join-Path $State.OutputRoot 'results'
     if ($State.ViewFromFile) {
-        $answer = Read-MbcLine -State $State -Title 'Write as plaintext' -Label "This result is already filed, locked. Write every part of it as plaintext into $results? The parts hold tenant configuration: keep them on this machine, share them only through an access-controlled location, and delete them when done (docs/handling-results.md). Type yes to confirm."
+        $answer = Read-MbcLine -State $State -Title 'Write as plaintext' -Label "This result is already filed, locked. Write its five result parts as plaintext into $results (its run log stays inside the locked file)? The parts hold tenant configuration: keep them on this machine, share them only through an access-controlled location, and delete them when done (docs/handling-results.md). Type yes to confirm."
         if ($answer -cne 'yes') { Set-MbcTuiMessage -State $State -Text 'Nothing written.'; return }
         try {
             $files = Export-MbcRunFiles -Document $State.View.Document -Directory $results -NoLock
             Set-MbcTuiMessage -State $State -Text "Written as plaintext: $(Split-Path -Leaf $files.Report) and four more, in $results. File them accordingly." -Style 'warn'
         }
         catch { Set-MbcTuiMessage -State $State -Text $_.Exception.Message -Style 'bad' }
+        return
+    }
+    if ($State.LockedAs) {
+        Set-MbcTuiMessage -State $State -Text "Already exported, locked, as $(Split-Path -Leaf $State.LockedAs). Nothing written." -Style 'warn'
         return
     }
     $keyText = $script:MbcSessionKey
@@ -489,6 +493,7 @@ function Invoke-MbcTuiExport {
         $logPath = if ($noLock) { '' } else { [string]$State.RunLogPath }
         $files = Export-MbcRunFiles -Document $State.View.Document -Directory $results -KeyText $keyText -NoLock:$noLock -LogPath $logPath
         $State.Exported = $true
+        $State.LockedAs = $files.Locked
         $names = @($files.Locked, $files.Summary | Where-Object { $_ } | ForEach-Object { Split-Path -Leaf $_ }) -join ' and '
         if ($noLock) { $names = 'five plaintext parts' }
         # One status line: what matters first, the long folder path last.

@@ -62,50 +62,57 @@ function Invoke-BaselineCheck {
     $seal = if ($b.SealState -eq 'Sealed') { "sealed $($g.Seal)" } else { 'UNSEALED' }
     & $say (ConvertTo-MbcGlyphText ('{0} {1} v{2} {1} {3} {1} {4}' -f $b.Name, $g.Dot, $b.Version, $b.Fingerprint, $seal) $g)
 
-    if (-not $Fetch) {
-        $plan = Get-MbcSignInPlan -Preset $preset
-        & $say $(if ($plan.Count -gt 1) { 'Signing in, one after another. Choose the same account each time.' } else { 'Signing in:' })
-        foreach ($l in $plan) { & $say "  $l" }
-        $Connection = Connect-MbcSources -Preset $preset -Log $log
-        $signedIn = $true
-        $Fetch = { param($Item) Invoke-MbcSourceFetch -Item $Item -Preset $preset -Connection $Connection -Log $log }
-    }
-    if ($Connection -and $Connection.PSObject.Properties['Disclosure']) {
-        Write-MbcLog -Log $log -EventName 'disclosure' -Data @{ lines = @($Connection.Disclosure) }
-        foreach ($d in $Connection.Disclosure) { & $say (ConvertTo-MbcGlyphText $d $g) }
-    }
+    try {
+        if (-not $Fetch) {
+            $plan = Get-MbcSignInPlan -Preset $preset
+            & $say $(if ($plan.Count -gt 1) { 'Signing in, one after another. Choose the same account each time.' } else { 'Signing in:' })
+            foreach ($l in $plan) { & $say "  $l" }
+            $Connection = Connect-MbcSources -Preset $preset -Log $log
+            $signedIn = $true
+            $Fetch = { param($Item) Invoke-MbcSourceFetch -Item $Item -Preset $preset -Connection $Connection -Log $log }
+        }
+        if ($Connection -and $Connection.PSObject.Properties['Disclosure']) {
+            Write-MbcLog -Log $log -EventName 'disclosure' -Data @{ lines = @($Connection.Disclosure) }
+            foreach ($d in $Connection.Disclosure) { & $say (ConvertTo-MbcGlyphText $d $g) }
+        }
 
-    if ($SkipAppInventory) { $Inventory = { param($OnProgress) $null = $OnProgress; New-MbcSkippedInventory } }
-    elseif (-not $Inventory) {
-        $tenantId = if ($Connection) { [string]$Connection.TenantId } else { '' }
-        $Inventory = { param($OnProgress) Invoke-MbcInventory -TenantId $tenantId -Log $log -OnProgress $OnProgress }
-    }
+        if ($SkipAppInventory) { $Inventory = { param($OnProgress) $null = $OnProgress; New-MbcSkippedInventory } }
+        elseif (-not $Inventory) {
+            $tenantId = if ($Connection) { [string]$Connection.TenantId } else { '' }
+            $Inventory = { param($OnProgress) Invoke-MbcInventory -TenantId $tenantId -Log $log -OnProgress $OnProgress }
+        }
 
-    try { $run = Invoke-MbcRun -Baseline $b -Fetch $Fetch -RunId $runId -Inventory $Inventory -OnResult { param($r) Write-MbcCheckLog -Log $log -Result $r } }
-    finally {
-        # Everything is read; leave nothing signed in behind.
-        if ($signedIn) {
-            $closed = Invoke-MbcDisconnectAll -Log $log
-            if (@($closed).Count) { & $say "Signed out of $(@($closed) -join ', ')." }
-            if ($Connection.PSObject.Properties['Consent']) { foreach ($a in (Format-MbcConsentAdvice -Consent $Connection.Consent)) { & $say $a } }
-            foreach ($a in (Get-MbcBrokerAdvice -Account ([string]$Connection.Account))) { & $say $a }
+        try { $run = Invoke-MbcRun -Baseline $b -Fetch $Fetch -RunId $runId -Inventory $Inventory -OnResult { param($r) Write-MbcCheckLog -Log $log -Result $r } }
+        finally {
+            # Everything is read; leave nothing signed in behind.
+            if ($signedIn) {
+                $closed = Invoke-MbcDisconnectAll -Log $log
+                if (@($closed).Count) { & $say "Signed out of $(@($closed) -join ', ')." }
+                if ($Connection.PSObject.Properties['Consent']) { foreach ($a in (Format-MbcConsentAdvice -Consent $Connection.Consent)) { & $say $a } }
+                foreach ($a in (Get-MbcBrokerAdvice -Account ([string]$Connection.Account))) { & $say $a }
+            }
+        }
+        $document = New-MbcResultDocument -Run $run -Baseline $b -Connection $Connection
+        $view = ConvertFrom-MbcResultDocument -Document $document
+
+        foreach ($row in (Get-MbcResultRows -Results $view.Results -Filter 'all')) {
+            if ($row.Kind -eq 'heading') { & $say '' }
+            & $say (Format-MbcRowLine -Row $row -Width $width -Glyphs $g -Color $false)
+        }
+        & $say ''
+        foreach ($line in (Format-MbcInventoryNote -Inventory $view.Inventory -Glyphs $g)) { & $say "App inventory: $line" }
+
+        # The log is finished before an export, which may carry it into the locked file.
+        Write-MbcLog -Log $log -EventName 'run.end' -Data ([ordered]@{ pass = $run.Counts.Pass; fail = $run.Counts.Fail; error = $run.Counts.Error; resultDigest = $document['seal']['digest'] })
+        $files = $null
+        if ($Export) {
+            $files = Export-MbcRunFiles -Document $document -Directory (Join-Path $root 'results') -KeyText $keyText -NoLock:$NoLock -LockSummary:$LockSummary -LogPath $log.Path
         }
     }
-    $document = New-MbcResultDocument -Run $run -Baseline $b -Connection $Connection
-    $view = ConvertFrom-MbcResultDocument -Document $document
-
-    foreach ($row in (Get-MbcResultRows -Results $view.Results -Filter 'all')) {
-        if ($row.Kind -eq 'heading') { & $say '' }
-        & $say (Format-MbcRowLine -Row $row -Width $width -Glyphs $g -Color $false)
-    }
-    & $say ''
-    foreach ($line in (Format-MbcInventoryNote -Inventory $view.Inventory -Glyphs $g)) { & $say "App inventory: $line" }
-
-    # The log is finished before an export, which may carry it into the locked file.
-    Write-MbcLog -Log $log -EventName 'run.end' -Data ([ordered]@{ pass = $run.Counts.Pass; fail = $run.Counts.Fail; error = $run.Counts.Error; resultDigest = $document['seal']['digest'] })
-    $files = $null
-    if ($Export) {
-        $files = Export-MbcRunFiles -Document $document -Directory (Join-Path $root 'results') -KeyText $keyText -NoLock:$NoLock -LockSummary:$LockSummary -LogPath $log.Path
+    catch {
+        # Whatever stopped the run, the log it leaves is plaintext; say where before the error.
+        if (Test-Path -LiteralPath $log.Path -PathType Leaf) { & $say (Get-MbcPlaintextLogNote -Path $log.Path) }
+        throw
     }
     $logLocked = $files -and $files.LogLocked
     & $say ''

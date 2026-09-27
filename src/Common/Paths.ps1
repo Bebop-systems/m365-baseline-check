@@ -59,8 +59,8 @@ function Write-MbcFileAtomic {
     $full = [System.IO.Path]::GetFullPath($Path)
     $temp = '{0}.{1}.tmp' -f $full, [guid]::NewGuid().ToString('N').Substring(0, 8)
     try {
-        [System.IO.File]::WriteAllText($temp, $Text, [System.Text.UTF8Encoding]::new($false))
-        Set-MbcPrivateMode -Path $temp
+        # Private from the moment it exists (600 on macOS and Linux), and the move keeps the mode.
+        New-MbcPrivateFile -Path $temp -Text $Text
         [System.IO.File]::Move($temp, $full, $true)
     }
     finally {

@@ -56,8 +56,11 @@ synchronises to the cloud, where copies multiply beyond your control.
   Device encryption, or `manage-bde -status` from an elevated prompt. Synced locations to avoid:
   OneDrive (including Desktop and Documents when OneDrive backs them up), Dropbox, Google Drive, Box.
 
-The default output folder, `~/M365BaselineCheck`, is in neither kind of synced location, and the tool
-makes it and everything it writes readable by you alone on macOS and Linux (folders 700, files 600).
+The default output folder, `~/M365BaselineCheck`, is in neither kind of synced location. On macOS and
+Linux the tool creates it readable by you alone (700), keeps `logs/`, `results/`, `presets/` and
+`baselines/` at 700, and creates every file it writes at 600. A folder that already existed keeps its
+mode, as do files written by an older version; `chmod 700 ~/M365BaselineCheck` and
+`chmod 600 ~/M365BaselineCheck/*/*` tighten them.
 If you point `M365BC_HOME` or `-OutputRoot` at a synced folder, the tool refuses to start, because the
 run log is written in plaintext while a run goes. Choose a local folder instead; pass
 `-AllowSyncedOutput` only if your policy explicitly allows confidential plaintext in that service.
@@ -94,8 +97,9 @@ tool shows it, with its ID, when you quit. If it was granted for this work, remo
 - Makes its output folders and files private to you on macOS and Linux.
 - Refuses an output folder in iCloud Drive, OneDrive, Dropbox, Google Drive or Box unless told
   otherwise.
-- Tells you, at the start and end of a session, when plaintext logs or results older than 30 days
-  remain. It never deletes them for you.
+- Refuses to unlock plaintext into a synced folder, and never replaces a locked bundle.
+- Tells you when plaintext logs or results older than 30 days remain: at the end of a plain run, and
+  when the view opens and closes. It never deletes them for you.
 
 ## Checking a Mac before the first run
 
@@ -103,7 +107,8 @@ tool shows it, with its ID, when you quit. If it was granted for this work, remo
 2. `echo $HOME/M365BaselineCheck` is not under `~/Library/Mobile Documents` or
    `~/Library/CloudStorage`, and `~/Documents` isn't synced by iCloud if you chose a folder there.
 3. After a run, `ls -la ~/M365BaselineCheck ~/M365BaselineCheck/logs` shows `drwx------` on the
-   folders and `-rw-------` on the files.
+   folders and `-rw-------` on the files. If the folder predates this version, tighten it first
+   (see rule 3).
 4. The team key is in the password manager, not in a note or the clipboard history.
 
 ## Reference
