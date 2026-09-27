@@ -23,10 +23,13 @@ The code in this repository was written by Claude (Anthropic's model), under hum
 - PowerShell 7.4 or later, on macOS, Windows or Linux. On a Mac: `brew install powershell`, then
   `pwsh` in Terminal or iTerm2.
 - `Microsoft.Graph.Authentication` 2.38.1 or later below 3.0, and `ExchangeOnlineManagement` 3.10.0
-  or later below 4.0 when a baseline uses Exchange Online or Security & Compliance checks. Those are
-  the tested ranges: the tool loads nothing outside them, and on Windows nothing without Microsoft's
-  valid signature, because these modules hold an administrator's token while they run. The sign-in
-  disclosure names the versions used, and marks any newer than tested.
+  or later below 4.0 when a baseline uses Exchange Online or Security & Compliance checks. Exchange
+  Online Management 3.10.0 needs PowerShell 7.6. Those are the tested ranges, and only release
+  versions count. These modules hold an administrator's token while they run, so the tool loads
+  nothing outside them. On Windows it also requires Microsoft's valid signature on each module's
+  manifest, root module and core assemblies (the rest of the folder holds third-party assemblies and
+  isn't checked); macOS and Linux can't check signatures. The sign-in disclosure names the versions
+  used, and marks any newer than tested.
 
 ```powershell
 Install-Module Microsoft.Graph.Authentication -RequiredVersion 2.38.1 -Scope CurrentUser
@@ -171,7 +174,9 @@ Authenticode signing happens in the same workflow once the repository has the se
 `SIGNING_CERT_PFX_BASE64` (the code-signing certificate as base64 PFX) and `SIGNING_CERT_PASSWORD`.
 Every `.ps1`, `.psm1` and `.psd1` is then signed with SHA-256 and a timestamp; check one with
 `Get-AuthenticodeSignature ./M365BaselineCheck/M365BaselineCheck.psd1`. Until then releases are
-unsigned and marked as pre-releases while the version is 0.x.
+unsigned; on Windows with the RemoteSigned policy, run `Get-ChildItem -Recurse ./M365BaselineCheck |
+Unblock-File` after extracting. Versions 0.x are marked as pre-releases, signed or not. The zip holds
+the module and its operator docs; the demo, tests and tools stay in the repository.
 
 ### Testing on a Mac
 

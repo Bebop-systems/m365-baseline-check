@@ -1,8 +1,9 @@
 name: release
 
-# A tag v<ModuleVersion> builds the release: the gate, then the zip and its SHA-256 checksum, signed
-# with Authenticode when the signing secrets exist, with a build provenance attestation, published as a
-# GitHub release. Actions are pinned to commit SHAs because this workflow can write and holds the key.
+# A tag v<ModuleVersion> builds the release. The gate runs in its own read-only job; the release job,
+# which alone can write and sees the signing secrets, installs nothing from the gallery. It builds the
+# zip and its SHA-256 checksum, signs with Authenticode when the secrets exist, attests the build's
+# provenance and publishes a GitHub release. Actions are pinned to commit SHAs.
 
 on:
   push:
@@ -12,14 +13,12 @@ permissions:
   contents: read
 
 jobs:
-  release:
+  gate:
     runs-on: windows-latest
-    permissions:
-      contents: write
-      id-token: write
-      attestations: write
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
       - name: Install Pester and PSScriptAnalyzer
         shell: pwsh
         run: |
@@ -29,6 +28,18 @@ jobs:
       - name: Gate
         shell: pwsh
         run: ./tools/Invoke-Gate.ps1
+
+  release:
+    needs: gate
+    runs-on: windows-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
       - name: Build, and sign when a certificate is configured
         shell: pwsh
         env:
@@ -53,7 +64,8 @@ jobs:
         run: |
           $tag = $env:GITHUB_REF_NAME
           $zip = (Get-ChildItem out/release -Filter 'M365BaselineCheck-*.zip').Name
-          $signed = if ($env:SIGNED -eq 'True') { 'Every script file is Authenticode-signed.' } else { 'This release is not Authenticode-signed.' }
+          $signed = if ($env:SIGNED -eq 'True') { 'Every script file is Authenticode-signed.' }
+          else { 'This release is not Authenticode-signed. On Windows with the RemoteSigned policy, unblock the files after extracting: Get-ChildItem -Recurse ./M365BaselineCheck | Unblock-File' }
           $notes = @(
             $signed, '',
             'Verify before use:', '',
@@ -61,7 +73,8 @@ jobs:
             "(Get-FileHash ./$zip -Algorithm SHA256).Hash   # compare with SHA256SUMS.txt",
             "gh attestation verify ./$zip --repo $env:GITHUB_REPOSITORY",
             '```', '',
-            'Then see README, "Releases and verifying".'
+            'The zip holds the module and its operator docs. The demo, tests and tools are in the repository at this tag.',
+            'README, "Releases and verifying", has the rest.'
           ) -join "`n"
           $pre = if ($tag.StartsWith('v0.')) { @('--prerelease') } else { @() }
           gh release create $tag "out/release/$zip" out/release/SHA256SUMS.txt --title "M365 Baseline Check $($tag.Substring(1))" --notes $notes @pre

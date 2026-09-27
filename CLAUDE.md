@@ -173,13 +173,18 @@ different MSAL build load beside it. Probed on Graph 2.38.1 and ExchangeOnlineMa
 forcing MSAL initialisation in each order in a fresh process: both orders loaded without type-load
 errors, and Graph-first showed both builds loaded side by side.
 
-Both modules are pinned in `src/Sources/Dependencies.ps1`: a tested range for each (now Graph 2.38.1
-to below 3.0, Exchange Online Management 3.10.0 to below 4.0), the highest installed version inside it
-chosen, imported from the manifest that was checked, and on Windows only with Microsoft's valid
-Authenticode signature. An out-of-range version already loaded in the session is refused. To raise a
-range, do a live run on the new version (sign-in, a full run, sign-out), then change `Minimum` or
-`Tested` there and the install lines in README. A version newer than `Tested` inside the range runs,
-and the disclosure says it is untested.
+Both modules are pinned in `src/Sources/Dependencies.ps1`:
+- a tested range for each (now Graph 2.38.1 to below 3.0, Exchange Online Management 3.10.0 to below
+  4.0, which needs PowerShell 7.6);
+- the highest installed release version inside it is chosen (previews never), and imported from the
+  manifest that was checked;
+- `Files` lists what must exist and, on Windows, carry a valid signature from Microsoft Corporation
+  issued by a Microsoft Code Signing PCA: the manifest, root module and the assemblies it imports;
+- a version outside the range that's already loaded in the session is refused.
+
+To raise a range, do a live run on the new version (sign-in, a full run, sign-out), then change
+`Minimum`, `Tested`, `PowerShell` or `Files` there, and the install lines in README. A version newer
+than `Tested` inside the range runs, and the disclosure says it is untested.
 
 First live run: Graph signed in through the Windows broker (WAM), but Exchange Online's broker sign-in
 failed with `NullReferenceException` in MSAL's `RuntimeBroker..ctor` (no parent window). Exchange Online
