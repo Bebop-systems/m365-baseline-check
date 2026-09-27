@@ -123,6 +123,7 @@ InModuleScope M365BaselineCheck {
             $entry['source'] | Should -Be 'graph'
             $entry['status'] | Should -Be 200
             $entry['pages'] | Should -Be 1
+            $entry.Contains('properties') | Should -BeTrue
         }
     }
 

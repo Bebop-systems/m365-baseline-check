@@ -127,9 +127,10 @@ function Invoke-MbcCmdletGet {
     $runLog = $Log
     $finish = {
         param($cause, $detail, $body, $count)
+        $names = if ($body) { Get-MbcPropertyNames -Body $body } else { @() }
         Write-MbcLog -Log $runLog -EventName 'request' -Data ([ordered]@{
                 source = $source; request = $name; parameters = $parameters; cause = $cause; detail = $detail
-                objects = $count; durationMs = $clock.ElapsedMilliseconds
+                objects = $count; properties = $names; durationMs = $clock.ElapsedMilliseconds
             })
         if ($cause) { New-MbcFetchResult -Ok $false -Cause $cause -Detail $detail }
         else { New-MbcFetchResult -Ok $true -Body $body -Status 200 -Pages 1 }

@@ -60,6 +60,20 @@ function Get-MbcRetryDelay {
     return [Math]::Min([int][Math]::Pow(2, $Attempt), $script:MbcMaxWaitSeconds)
 }
 
+function Get-MbcPropertyNames {
+    # The top-level property names of a response, or of its first value item, for the log. No values.
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param([AllowNull()][object] $Body)
+    if (-not (Test-MbcIsDictionary $Body)) { return , @() }
+    $target = $Body
+    if ($Body.Contains('value') -and (Test-MbcIsList $Body['value'])) {
+        $first = @($Body['value']) | Select-Object -First 1
+        $target = if (Test-MbcIsDictionary $first) { $first } else { [ordered]@{} }
+    }
+    return , [string[]]@(@($target.Keys) | Select-Object -First 60)
+}
+
 function Test-MbcGraphNextLink {
     [CmdletBinding()]
     [OutputType([bool])]
@@ -155,6 +169,7 @@ function Invoke-MbcGraphGet {
         $root['value'] = $values.ToArray()
         if ($root.Contains('@odata.nextLink')) { $root.Remove('@odata.nextLink') }
     }
-    & $logEntry ([ordered]@{ source = 'graph'; apiVersion = $ApiVersion; request = $Request; status = 200; pages = $pageCount; waitedSeconds = $waited; durationMs = $clock.ElapsedMilliseconds })
+    # Property names only, never values: enough to see why a select path found nothing.
+    & $logEntry ([ordered]@{ source = 'graph'; apiVersion = $ApiVersion; request = $Request; status = 200; pages = $pageCount; waitedSeconds = $waited; durationMs = $clock.ElapsedMilliseconds; properties = Get-MbcPropertyNames -Body $root })
     return (New-MbcFetchResult -Ok $true -Body $root -Status 200 -Pages $pageCount)
 }

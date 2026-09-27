@@ -40,7 +40,8 @@ machine. Press `r` to run and `?` on any screen for its keys.
 ## Quick start
 
 ```powershell
-Import-Module ./M365BaselineCheck.psd1
+# In a fresh PowerShell, or add -Force: Import-Module keeps a version it already loaded.
+Import-Module ./M365BaselineCheck.psd1 -Force
 
 # The interactive view.
 Start-BaselineCheck -Baseline ./presets/example-tenant-hygiene.baseline.json
