@@ -10,6 +10,7 @@ BeforeAll {
         function Get-Many { [CmdletBinding()] param() foreach ($n in 1..3) { [pscustomobject]@{ N = $n } } }
         function Get-Denied { [CmdletBinding()] param() throw "The user isn't authorized to run this cmdlet." }
         function Get-Broken { [CmdletBinding()] param() throw [System.InvalidOperationException]::new('The service is unavailable.') }
+        function Get-BoundKeys { [CmdletBinding()] param() Write-Warning 'noise from the service'; [pscustomobject]@{ Bound = (@($PSBoundParameters.Keys) -join ',') } }
         Export-ModuleMember -Function *
     } | Import-Module -Global -Force
     New-Module -Name 'tmpOther_mbctest' -ScriptBlock {
@@ -75,7 +76,7 @@ InModuleScope M365BaselineCheck {
 
     Describe 'The cmdlet guard' {
         BeforeAll {
-            $script:Preset = [ordered]@{ cmdlets = [ordered]@{ exo = @('Get-OrganizationConfig', 'Get-Nothing', 'Get-Many', 'Get-Denied', 'Get-Broken', 'Get-Elsewhere', 'Set-Thing') } }
+            $script:Preset = [ordered]@{ cmdlets = [ordered]@{ exo = @('Get-OrganizationConfig', 'Get-Nothing', 'Get-Many', 'Get-Denied', 'Get-Broken', 'Get-Elsewhere', 'Get-BoundKeys', 'Set-Thing') } }
             $script:Sessions = [ordered]@{ exo = 'tmpEXO_mbctest' }
             $script:Ran = [System.Collections.Generic.List[string]]::new()
             $script:CountingRunner = { param($Command, $Parameters) $script:Ran.Add($Command.Name); Invoke-MbcCmdletRunner -Command $Command -Parameters $Parameters }
@@ -131,6 +132,14 @@ InModuleScope M365BaselineCheck {
             $r = Get-Via (New-Item2 'Get-Broken')
             $r.Cause | Should -Be 'cmdlet failed'
             $r.Detail | Should -BeLike '*The service is unavailable.*'
+        }
+
+        It 'passes the cmdlet no parameter it did not ask for, and keeps its warnings out of the console' {
+            $all = @(Invoke-MbcCmdletGet -Item (New-Item2 'Get-BoundKeys') -Preset $script:Preset -Sessions $script:Sessions 3>&1)
+            $r = $all | Where-Object { $_ -isnot [System.Management.Automation.WarningRecord] }
+            $r.Ok | Should -BeTrue
+            $r.Body['value'][0]['Bound'] | Should -Not -BeLike '*WarningAction*' -Because 'Exchange Online forwards bound parameters to the service'
+            @($all | Where-Object { $_ -is [System.Management.Automation.WarningRecord] }).Count | Should -Be 0 -Because 'a warning would write over the TUI'
         }
 
         It 'logs the source, the cmdlet and its parameters' {

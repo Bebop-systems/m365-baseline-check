@@ -276,7 +276,7 @@ $script:MbcCauseAdvice = @{
     'request not declared'            = 'The preset does not declare this request, so it was not sent. Declare it and seal again.'
     'not connected'                   = 'This source''s session did not connect. Sign in again and rerun.'
     'cmdlet not available'            = 'The session has no such cmdlet. The account may lack the role that provides it.'
-    'cmdlet failed'                   = 'The cmdlet stopped with an error. The log has it.'
+    'cmdlet failed'                   = 'The cmdlet stopped with an error (see the cause). A ''server side error'' comes from Exchange Online itself: if the cmdlet fails the same way when run by hand, the service is at fault, not the check.'
     'not collected'                   = 'Nothing was read for this check. The log has what happened.'
 }
 
