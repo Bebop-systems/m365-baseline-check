@@ -82,6 +82,7 @@ function Invoke-BaselineCheck {
             $closed = Invoke-MbcDisconnectAll -Log $log
             if (@($closed).Count) { & $say "Signed out of $(@($closed) -join ', ')." }
             if ($Connection.PSObject.Properties['Consent']) { foreach ($a in (Format-MbcConsentAdvice -Consent $Connection.Consent)) { & $say $a } }
+            foreach ($a in (Get-MbcBrokerAdvice -Account ([string]$Connection.Account))) { & $say $a }
         }
     }
     $document = New-MbcResultDocument -Run $run -Baseline $b -Connection $Connection

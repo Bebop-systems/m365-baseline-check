@@ -19,6 +19,22 @@ InModuleScope M365BaselineCheck {
         It 'lists the cmdlet sources the checks use' {
             (Get-MbcPresetSources -Preset $script:Preset) -join ',' | Should -Be 'exo'
         }
+        It 'says which sign-ins are coming, and that Security & Compliance usually reuses Exchange''s' {
+            $both = ConvertFrom-MbcJson -Json ([System.IO.File]::ReadAllText((Join-Path $script:ModuleRoot 'presets/example-tenant-hygiene.json')))
+            $plan = Get-MbcSignInPlan -Preset $both
+            $plan.Count | Should -Be 3
+            $plan[2] | Should -BeLike '*usually reuses the Exchange Online sign-in*'
+        }
+        It 'tells the operator what Windows may remember when the broker clean-up could not run' {
+            $saved = $script:MbcBrokerSignOutSkipped
+            try {
+                $script:MbcBrokerSignOutSkipped = $true
+                (Get-MbcBrokerAdvice -Account 'operator@example.com') -join ' ' | Should -BeLike '*may still remember operator@example.com*Accounts used by other apps*'
+                $script:MbcBrokerSignOutSkipped = $false
+                (Get-MbcBrokerAdvice -Account 'operator@example.com').Count | Should -Be 0
+            }
+            finally { $script:MbcBrokerSignOutSkipped = $saved }
+        }
         It 'reads a session module name from a name or a path' {
             Get-MbcSessionModuleName -ModuleName 'tmpEXO_abc123' | Should -Be 'tmpEXO_abc123'
             Get-MbcSessionModuleName -ModuleName 'C:\Temp\tmpEXO_abc123\tmpEXO_abc123.psm1' | Should -Be 'tmpEXO_abc123'

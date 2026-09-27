@@ -55,7 +55,7 @@ function Start-BaselineCheck {
             $closed = Invoke-MbcDisconnectAll
             $message = if (@($closed).Count) { "Signed out of $(@($closed) -join ', '). The team key, if one was given, is forgotten." } else { 'Nothing was left signed in.' }
             Write-Information $message -InformationAction Continue
-            $advice = Format-MbcConsentAdvice -Consent $consent
+            $advice = @(Format-MbcConsentAdvice -Consent $consent) + @(Get-MbcBrokerAdvice -Account ([string]$state.Connection.Account))
             if ($advice.Count) { Write-Information '' -InformationAction Continue; foreach ($a in $advice) { Write-Information $a -InformationAction Continue } }
         }
     }

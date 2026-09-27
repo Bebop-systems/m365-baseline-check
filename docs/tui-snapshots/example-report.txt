@@ -3,7 +3,7 @@ M365 Baseline Check report                                                      
 Baseline   Example tenant hygiene · v2 · dc1e31c4226c
 Digest     SHA-256 dc1e31c4226c28d08bde60be3eb21704316c0c15f158a3697ae2e2e041078627
 Tenant     Example Ltd (example.com)
-Run        2026-09-27 14:46 UTC · run 20260926T141200Z-d3m0aa
+Run        2026-09-27 15:48 UTC · run 20260926T141200Z-d3m0aa
 Sign-in    Signed in as admin@example.com to Example Ltd (00000000-0000-4000-8000-000000000001).
 Sign-in    Directory roles: Global Administrator.
 Sign-in    Graph scopes granted: Application.Read.All, Directory.Read.All, Policy.Read.All,
@@ -13,20 +13,21 @@ Sign-in    Security & Compliance: not connected (User canceled authentication.).
 Sign-in    Signed in through Microsoft Graph Command Line Tools; consent it holds here: 5
            permissions for all users. Details on the sign-in screen and in the report.
 Sign-in    Read-only by construction: GET-only Graph, Get- cmdlets only.
-Consent    Graph sign-in went through Microsoft Graph Command Line Tools, app ID
-           14d82eec-204b-4c2f-b7e8-296a70dab67e.
-Consent    In this tenant: enterprise app (service principal) 00000000-0000-4000-8000-000000000901.
-Consent    Admin consent for all users: 5 permissions, 1 of them write. Grant ID
-           demoGrantAdmin0000000000000000000000000000.
-Consent    If it was granted for this work, remove it when you are done; other admins' PowerShell
-           may rely on it.
-Consent    In the portal: Entra admin center > Enterprise applications > Microsoft Graph Command
-           Line Tools > Permissions.
-Consent    In PowerShell, with Microsoft.Graph.Identity.SignIns and
-           DelegatedPermissionGrant.ReadWrite.All:
-Consent    Remove-MgOauth2PermissionGrant `
-Consent    -OAuth2PermissionGrantId 'demoGrantAdmin0000000000000000000000000000'
-Consent    docs/removing-consent.md has the rest, including a version that needs no extra module.
+
+Consent this sign-in relied on
+  Graph sign-in went through Microsoft Graph Command Line Tools, app ID
+    14d82eec-204b-4c2f-b7e8-296a70dab67e.
+  In this tenant: enterprise app (service principal) 00000000-0000-4000-8000-000000000901.
+  Admin consent for all users: 5 permissions, 1 of them write. Grant ID
+    demoGrantAdmin0000000000000000000000000000.
+  If it was granted for this work, remove it when you are done; other admins' PowerShell may rely
+    on it.
+  In the portal: Entra admin center > Enterprise applications > Microsoft Graph Command Line Tools
+    > Permissions.
+  In PowerShell, with Microsoft.Graph.Identity.SignIns and DelegatedPermissionGrant.ReadWrite.All:
+      Remove-MgOauth2PermissionGrant `
+          -OAuth2PermissionGrantId 'demoGrantAdmin0000000000000000000000000000'
+  docs/removing-consent.md has the rest, including a version that needs no extra module.
 
 Results   13 met, 5 not, 2 unverifiable
 

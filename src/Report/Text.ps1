@@ -268,7 +268,7 @@ $script:MbcCauseAdvice = @{
     'malformed response'              = 'The answer was not what the service documents. The log has it.'
     'request rejected'                = 'The request itself was refused. The preset may be using a path or parameter the service does not accept.'
     'too many pages'                  = 'The answer ran past the page limit. Narrow the request in the preset.'
-    'setting not found'               = 'The path found nothing in the answer: the setting may not exist in this tenant, or the preset''s path is wrong.'
+    'setting not found'               = 'The path found nothing in the answer (see the cause): the service may return nothing until someone saves the setting, it may not exist in this tenant, or the preset''s path is wrong.'
     'baseline expects a list'         = 'The baseline expects a list here and found a single value; the baseline needs correcting.'
     'baseline expects a single value' = 'The baseline expects a single value here and found a list; the baseline needs correcting.'
     'invalid pattern'                 = 'The baseline''s regular expression does not compile.'
@@ -469,7 +469,17 @@ function ConvertTo-MbcTextReport {
     & $add 'Tenant' $tenant
     & $add 'Run' "$(Format-MbcRunTime $View.StartedUtc) $($g.Dot) run $($View.RunId)"
     foreach ($d in $View.Disclosure) { & $add 'Sign-in' $d }
-    foreach ($l in (Format-MbcConsentAdvice -Consent $View.Consent)) { & $add 'Consent' $l }
+    $consentLines = Format-MbcConsentAdvice -Consent $View.Consent
+    if ($consentLines.Count) {
+        $out.Add('')
+        $out.Add('Consent this sign-in relied on')
+        foreach ($l in $consentLines) {
+            # Command lines are copied as they are; prose wraps under its indent.
+            if ($l.StartsWith('    ')) { $out.Add("  $l"); continue }
+            $first = $true
+            foreach ($w in (Split-MbcWrapped -Text $l -Width ($Width - 4) -Ellipsis $g.Ellipsis)) { $out.Add($(if ($first) { '  ' } else { '    ' }) + $w); $first = $false }
+        }
+    }
     if (-not $View.Sealed) { & $add 'Warning' 'This result does not match its own seal.' }
     $out.Add('')
     $out.Add("Results   $(Format-MbcCountsText -Counts $View.Counts -Color $false)")
