@@ -22,11 +22,12 @@
   "hosts": [
     "http://www.apache.org", "https://www.apache.org", "https://example.com",
     "https://graph.microsoft.com", "https://outlook.office365.com", "https://ps.compliance.protection.outlook.com",
-    "https://learn.microsoft.com", "https://github.com", "https://www.powershellgallery.com", "https://claude.com"
+    "https://learn.microsoft.com", "https://github.com", "https://www.powershellgallery.com", "https://claude.com",
+    "http://timestamp.digicert.com"
   ],
   "domains": [
     "anthropic.com", "apache.org", "www.apache.org", "example.com", "example.net", "example.org", "example.onmicrosoft.com", "onmicrosoft.com",
     "graph.microsoft.com", "learn.microsoft.com", "outlook.office365.com", "ps.compliance.protection.outlook.com",
-    "github.com", "www.powershellgallery.com", "claude.com", "system.io", "system.net"
+    "github.com", "www.powershellgallery.com", "claude.com", "system.io", "system.net", "timestamp.digicert.com"
   ]
 }

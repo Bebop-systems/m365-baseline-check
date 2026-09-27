@@ -17,9 +17,12 @@ function Test-MbcModuleAvailable {
 }
 
 function Import-MbcSourceModule {
+    # Only a pinned, checked version, imported from the manifest that was checked. See Dependencies.ps1.
     [CmdletBinding()]
     param([Parameter(Mandatory)][string] $Name)
-    if (-not (Get-Module -Name $Name)) { Import-Module -Name $Name -ErrorAction Stop -Verbose:$false }
+    $dep = Resolve-MbcDependency -Name $Name
+    if (-not $dep.AlreadyLoaded) { Import-Module -Name $dep.Manifest -ErrorAction Stop -Verbose:$false }
+    $script:MbcLoadedDependencies[$Name] = $dep
 }
 
 function Invoke-MbcConnectMgGraph {
@@ -322,6 +325,7 @@ function Format-MbcDisclosure {
         $admin = @($Connection.Consent.Grants | Where-Object Type -eq 'admin')
         $lines.Add("Signed in through $($Connection.Consent.ClientName); consent it holds here: $(if ($admin.Count) { "$(@($admin[0].Scopes).Count) permissions for all users" } else { 'none for all users' }). Details on the sign-in screen and in the report.")
     }
+    if ($Connection.PSObject.Properties['Modules'] -and $Connection.Modules) { $lines.Add($Connection.Modules) }
     $lines.Add($script:MbcReadOnlyLine)
     return , $lines.ToArray()
 }
@@ -342,9 +346,10 @@ function Connect-MbcSources {
     )
     $scopes = Get-MbcSignInScopes -Preset $Preset
     if (-not (Test-MbcModuleAvailable -Name 'Microsoft.Graph.Authentication')) {
-        throw "Microsoft.Graph.Authentication isn't installed. Install-Module Microsoft.Graph.Authentication -Scope CurrentUser, then try again."
+        throw "Microsoft.Graph.Authentication isn't installed. $(Get-MbcInstallHint -Name 'Microsoft.Graph.Authentication'), then try again."
     }
     $sources = Get-MbcPresetSources -Preset $Preset
+    $script:MbcLoadedDependencies = [ordered]@{}
     Import-MbcSourceModule -Name $script:MbcModuleOrder[0]
     # Start clean: nothing left open by anyone is reused, and whatever this sign-in opens is all there is.
     $closedFirst = Invoke-MbcDisconnectAll -Log $Log
@@ -397,11 +402,14 @@ function Connect-MbcSourcesCore {
     $sessions = [ordered]@{}
     $failed = [ordered]@{}
     if ($sources.Count -gt 0) {
-        if (-not (Test-MbcModuleAvailable -Name 'ExchangeOnlineManagement')) {
-            foreach ($s in $sources) { $failed[$s] = "ExchangeOnlineManagement 3.x isn't installed; Install-Module ExchangeOnlineManagement -Scope CurrentUser" }
-        }
+        $exoProblem = $null
+        if (-not (Test-MbcModuleAvailable -Name 'ExchangeOnlineManagement')) { $exoProblem = "ExchangeOnlineManagement isn't installed; $(Get-MbcInstallHint -Name 'ExchangeOnlineManagement')" }
         else {
-            Import-MbcSourceModule -Name $script:MbcModuleOrder[1]
+            try { Import-MbcSourceModule -Name $script:MbcModuleOrder[1] }
+            catch { $exoProblem = $_.Exception.Message }
+        }
+        if ($exoProblem) { foreach ($s in $sources) { $failed[$s] = $exoProblem } }
+        else {
             foreach ($s in $sources) {
                 try {
                     Invoke-MbcConnectExchange -Source $s -UserPrincipalName $account -CommandName (Get-MbcDeclaredCmdlets -Preset $Preset -Source $s)
@@ -428,6 +436,7 @@ function Connect-MbcSourcesCore {
         Failed      = $failed
         Disclosure  = @()
         ClosedFirst = [string[]]@($ClosedFirst)
+        Modules     = Format-MbcDependencyLine -Loaded @($script:MbcLoadedDependencies.Values)
     }
     $connection.Disclosure = Format-MbcDisclosure -Connection $connection
     Write-MbcLog -Log $Log -EventName 'signin' -Data ([ordered]@{

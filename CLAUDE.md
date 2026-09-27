@@ -171,8 +171,20 @@ exclamation marks, cuteness and filler are not.
 Graph 2.x loads its own MSAL build in a separate context; importing it first lets Exchange Online's
 different MSAL build load beside it. Probed on Graph 2.38.1 and ExchangeOnlineManagement 3.10.0 by
 forcing MSAL initialisation in each order in a fresh process: both orders loaded without type-load
-errors, and Graph-first showed both builds loaded side by side. The floors are Graph 2.x and Exchange
-Online Management 3.x.
+errors, and Graph-first showed both builds loaded side by side.
+
+Both modules are pinned in `src/Sources/Dependencies.ps1`:
+- a tested range for each (now Graph 2.38.1 to below 3.0, Exchange Online Management 3.10.0 to below
+  4.0, which needs PowerShell 7.6);
+- the highest installed release version inside it is chosen (previews never), and imported from the
+  manifest that was checked;
+- `Files` lists what must exist and, on Windows, carry a valid signature from Microsoft Corporation
+  issued by a Microsoft Code Signing PCA: the manifest, root module and the assemblies it imports;
+- a version outside the range that's already loaded in the session is refused.
+
+To raise a range, do a live run on the new version (sign-in, a full run, sign-out), then change
+`Minimum`, `Tested`, `PowerShell` or `Files` there, and the install lines in README. A version newer
+than `Tested` inside the range runs, and the disclosure says it is untested.
 
 First live run: Graph signed in through the Windows broker (WAM), but Exchange Online's broker sign-in
 failed with `NullReferenceException` in MSAL's `RuntimeBroker..ctor` (no parent window). Exchange Online
@@ -213,6 +225,9 @@ synced-folder rule; teams keep them in a private repository.
 - `pwsh -NoProfile -File tools/Start-Demo.ps1` runs the TUI against a synthetic tenant, nothing online.
 - `pwsh -NoProfile -File tools/Export-TuiSnapshots.ps1` renders every screen to `docs/tui-snapshots/`.
 - Files are UTF-8 without a BOM, with LF line endings.
+- Releases: raise `ModuleVersion`, merge, then push the tag `v<ModuleVersion>`. The release workflow
+  runs the gate again, builds with `tools/Build-Release.ps1`, signs if the secrets exist, attests and
+  publishes. Workflow actions are pinned to commit SHAs; update them deliberately.
 
 ## PowerShell traps met here
 
