@@ -101,6 +101,38 @@ InModuleScope M365BaselineCheck {
             { Connect-MbcSources -Preset $script:Preset -Transport $script:Transport } | Should -Throw '*Install-Module Microsoft.Graph.Authentication*'
         }
 
+        It 'reads the consent the signing-in app holds, and says how to remove it' {
+            Mock Get-MbcMgContext {
+                [pscustomobject]@{ Account = 'operator@example.com'; TenantId = '00000000-0000-4000-8000-000000000001'; ClientId = '14d82eec-204b-4c2f-b7e8-296a70dab67e'; Scopes = @('Policy.Read.All', 'Directory.ReadWrite.All') }
+            }
+            $consentTransport = {
+                param($Uri)
+                if ($Uri -like '*servicePrincipals[?]*appId*') { return [pscustomobject]@{ Status = 200; Body = '{"value":[{"id":"00000000-0000-4000-8000-0000000000c1","appId":"14d82eec-204b-4c2f-b7e8-296a70dab67e","displayName":"Microsoft Graph Command Line Tools"}]}'; RetryAfter = $null } }
+                if ($Uri -like '*/me[?]*') { return [pscustomobject]@{ Status = 200; Body = '{"id":"00000000-0000-4000-8000-0000000000e9"}'; RetryAfter = $null } }
+                if ($Uri -like '*oauth2PermissionGrants[?]*') {
+                    return [pscustomobject]@{ Status = 200; RetryAfter = $null; Body = '{"value":[
+                        {"id":"grant-admin","consentType":"AllPrincipals","principalId":null,"scope":"Policy.Read.All Directory.ReadWrite.All"},
+                        {"id":"grant-mine","consentType":"Principal","principalId":"00000000-0000-4000-8000-0000000000e9","scope":"User.Read"},
+                        {"id":"grant-other","consentType":"Principal","principalId":"00000000-0000-4000-8000-0000000000e8","scope":"Mail.Read"}]}' }
+                }
+                & $script:Transport $Uri
+            }
+            $c = Connect-MbcSources -Preset $script:Preset -Transport $consentTransport
+            @($c.Consent.Grants | ForEach-Object Id) -join ',' | Should -Be 'grant-admin,grant-mine' -Because 'another user''s own consent is theirs, not this sign-in''s'
+            $c.Consent.Grants[0].WriteScopes -join ',' | Should -Be 'Directory.ReadWrite.All'
+            $advice = (Format-MbcConsentAdvice -Consent $c.Consent) -join "`n"
+            $advice | Should -BeLike '*Microsoft Graph Command Line Tools, app ID 14d82eec-204b-4c2f-b7e8-296a70dab67e*'
+            $advice | Should -BeLike '*Admin consent for all users: 2 permissions, 1 of them write. Grant ID grant-admin.*'
+            $advice.Contains("Remove-MgOauth2PermissionGrant ``") | Should -BeTrue
+            $advice.Contains("-OAuth2PermissionGrantId 'grant-mine'") | Should -BeTrue
+            ($c.Disclosure -join "`n") | Should -BeLike '*Signed in through Microsoft Graph Command Line Tools; consent it holds here: 2 permissions for all users.*'
+        }
+
+        It 'says when there is no consent to remove, and when it could not be read' {
+            Format-MbcConsentAdvice -Consent ([pscustomobject]@{ ClientAppId = 'x'; ClientName = 'App'; ServicePrincipalId = 'y'; Grants = @(); Cause = $null }) | Select-Object -Last 1 | Should -BeLike '*Nothing to remove.*'
+            Format-MbcConsentAdvice -Consent ([pscustomobject]@{ ClientAppId = 'x'; ClientName = ''; ServicePrincipalId = ''; Grants = @(); Cause = 'permission missing' }) | Select-Object -Last 1 | Should -BeLike "*couldn't be read (permission missing)*"
+        }
+
         It 'closes any sessions left open before it signs in, and says so' {
             Mock Invoke-MbcDisconnectAll { , @('Graph') }
             $c = Connect-MbcSources -Preset $script:Preset -Transport $script:Transport

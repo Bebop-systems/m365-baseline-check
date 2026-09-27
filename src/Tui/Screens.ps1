@@ -84,6 +84,7 @@ function Get-MbcHomeMenu {
         [pscustomobject]@{ Label = 'Open a locked result…'; Key = 'o'; Action = 'openLocked' }
         [pscustomobject]@{ Label = 'Make a baseline: draft, seal, team key…'; Key = 's'; Action = 'build' }
         [pscustomobject]@{ Label = 'Sign in / switch account'; Key = 'c'; Action = 'signIn' }
+        [pscustomobject]@{ Label = 'Sign-in details and consent to remove'; Key = 'g'; Action = 'signInDetails' }
         [pscustomobject]@{ Label = "Read the app inventory with each run: $inventory"; Key = 't'; Action = 'toggleInventory' }
         [pscustomobject]@{ Label = 'Quit'; Key = 'q'; Action = 'quit' }
     )
@@ -275,6 +276,21 @@ function Invoke-MbcTuiNavigation {
             return $null
         }
         'build' { $State.BuildIndex = 0; $State.Screen = 'build'; return $null }
+        'signInDetails' {
+            if (-not $State.Connection) { Set-MbcTuiMessage -State $State -Text 'Not signed in yet: r signs in and runs, c signs in alone.' -Style 'warn'; return $null }
+            $lines = [System.Collections.Generic.List[string]]::new()
+            $lines.Add('')
+            foreach ($d in @($State.Connection.Disclosure)) { $lines.Add("  $d") }
+            $consent = if ($State.Connection.PSObject.Properties['Consent']) { $State.Connection.Consent } else { $null }
+            $advice = Format-MbcConsentAdvice -Consent $consent
+            if ($advice.Count) { $lines.Add(''); foreach ($a in $advice) { $lines.Add("  $a") } }
+            $lines.Add('')
+            $lines.Add('  Quitting signs out of every session and prints the consent lines above again.')
+            $State.Panel = @{ Title = 'Sign-in details'; Lines = $lines.ToArray() }
+            $State.PanelReturn = $State.Screen
+            $State.Screen = 'panel'
+            return $null
+        }
     }
 
     switch ($State.Screen) {
@@ -670,7 +686,10 @@ function Get-MbcScreenBody {
         'panel' {
             # Long lines wrap under their own indent, so nothing on a panel is cut off.
             $lines = [System.Collections.Generic.List[string]]::new()
-            foreach ($raw in @($State.Panel.Lines)) {
+            $source = @($State.Panel.Lines)
+            # The header already leaves a blank line; a panel's own leading one would double it.
+            if ($source.Count -gt 0 -and [string]::IsNullOrWhiteSpace([string]$source[0])) { $source = @($source | Select-Object -Skip 1) }
+            foreach ($raw in $source) {
                 $text = ConvertTo-MbcGlyphText ([string]$raw) $Glyphs
                 $indent = $text.Length - $text.TrimStart(' ').Length
                 if ($text.Length -le $Cap.Width -or $indent -ge $Cap.Width - 10) { $lines.Add($text); continue }

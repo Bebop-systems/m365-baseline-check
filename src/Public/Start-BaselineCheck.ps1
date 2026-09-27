@@ -51,9 +51,12 @@ function Start-BaselineCheck {
         $script:MbcSessionKey = $null
         # Leave nothing signed in behind: every session the view opened is closed on the way out.
         if ($state.Connection -and -not $Connection) {
+            $consent = if ($state.Connection.PSObject.Properties['Consent']) { $state.Connection.Consent } else { $null }
             $closed = Invoke-MbcDisconnectAll
             $message = if (@($closed).Count) { "Signed out of $(@($closed) -join ', '). The team key, if one was given, is forgotten." } else { 'Nothing was left signed in.' }
             Write-Information $message -InformationAction Continue
+            $advice = Format-MbcConsentAdvice -Consent $consent
+            if ($advice.Count) { Write-Information '' -InformationAction Continue; foreach ($a in $advice) { Write-Information $a -InformationAction Continue } }
         }
     }
 }

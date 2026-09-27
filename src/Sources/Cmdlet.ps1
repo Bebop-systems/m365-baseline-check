@@ -121,6 +121,7 @@ function Invoke-MbcCmdletGet {
         [AllowNull()] $Log
     )
     $clock = [System.Diagnostics.Stopwatch]::StartNew()
+    $failure = $null
     $source = [string]$Item.Source
     $name = [string]$Item.Request
     $parameters = if ($Item.Parameters) { $Item.Parameters } else { [ordered]@{} }
@@ -158,15 +159,30 @@ function Invoke-MbcCmdletGet {
         $splat[[string]$p] = $value
     }
 
-    try {
-        $output = if ($Runner) { & $Runner $command $splat } else { Invoke-MbcCmdletRunner -Command $command -Parameters $splat }
+    $attempt = 0
+    while ($true) {
+        try {
+            $output = if ($Runner) { & $Runner $command $splat } else { Invoke-MbcCmdletRunner -Command $command -Parameters $splat }
+            break
+        }
+        catch {
+            # "A server side error has occurred ... Please try again after some time": twice more, then give up.
+            if ($attempt -lt 2 -and (Test-MbcContainsAny -Text $_.Exception.Message -Fragments @('try again', 'server side error'))) {
+                $attempt++
+                Write-MbcLog -Log $runLog -EventName 'retry' -Data ([ordered]@{ source = $source; request = $name; attempt = $attempt; detail = $_.Exception.Message })
+                Wait-MbcSeconds -Seconds (2 * $attempt)
+                continue
+            }
+            $failure = $_
+            break
+        }
     }
-    catch {
-        $message = $_.Exception.Message
+    if ($failure) {
+        $message = $failure.Exception.Message
         $cause = if (Test-MbcContainsAny -Text $message -Fragments $script:MbcPermissionWords) { 'permission missing' }
         elseif (Test-MbcContainsAny -Text $message -Fragments $script:MbcNotFoundWords) { 'not found' }
         else { 'cmdlet failed' }
-        return (& $finish $cause "$($_.Exception.GetType().Name): $message" $null 0)
+        return (& $finish $cause "$($failure.Exception.GetType().Name): $message" $null 0)
     }
     $body = ConvertTo-MbcCmdletBody -Output @($output)
     return (& $finish $null $null $body $body['value'].Count)

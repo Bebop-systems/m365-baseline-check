@@ -71,7 +71,18 @@ function Get-MbcPropertyNames {
         $first = @($Body['value']) | Select-Object -First 1
         $target = if (Test-MbcIsDictionary $first) { $first } else { [ordered]@{} }
     }
-    return , [string[]]@(@($target.Keys) | Select-Object -First 60)
+    $names = [System.Collections.Generic.List[string]]::new()
+    foreach ($k in $target.Keys) {
+        $v = $target[$k]
+        if ($null -eq $v) { $names.Add("$k=null") }
+        elseif (Test-MbcIsDictionary $v) {
+            if ($v.Count -eq 0) { $names.Add("$k={}") }
+            foreach ($sub in $v.Keys) { $names.Add("$k.$sub$(if ($null -eq $v[$sub]) { '=null' })") }
+        }
+        else { $names.Add([string]$k) }
+        if ($names.Count -ge 80) { break }
+    }
+    return , $names.ToArray()
 }
 
 function Test-MbcGraphNextLink {

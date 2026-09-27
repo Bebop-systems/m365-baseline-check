@@ -11,11 +11,11 @@
     Open a locked result…                                                                        o
     Make a baseline: draft, seal, team key…                                                      s
     Sign in / switch account                                                                     c
+    Sign-in details and consent to remove                                                        g
     Read the app inventory with each run: on                                                     t
     Quit                                                                                         q
 
   Last results  13 met, 5 not, 2 unverifiable   · this run, not exported yet
-
 
 
 

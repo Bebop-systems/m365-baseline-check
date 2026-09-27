@@ -74,6 +74,34 @@ function ConvertFrom-MbcInventoryDocument {
     }
 }
 
+function ConvertTo-MbcConsentDocument {
+    [CmdletBinding()]
+    [OutputType([System.Collections.Specialized.OrderedDictionary])]
+    param([AllowNull()] $Consent)
+    if (-not $Consent) { return $null }
+    return [ordered]@{
+        clientAppId        = [string]$Consent.ClientAppId
+        clientName         = [string]$Consent.ClientName
+        servicePrincipalId = [string]$Consent.ServicePrincipalId
+        cause              = $Consent.Cause
+        grants             = @(@($Consent.Grants) | ForEach-Object { [ordered]@{ id = $_.Id; type = $_.Type; scopes = @($_.Scopes); writeScopes = @($_.WriteScopes) } })
+    }
+}
+
+function ConvertFrom-MbcConsentDocument {
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param([AllowNull()][System.Collections.IDictionary] $Document)
+    if (-not $Document) { return $null }
+    return [pscustomobject]@{
+        ClientAppId        = [string]$Document['clientAppId']
+        ClientName         = [string]$Document['clientName']
+        ServicePrincipalId = [string]$Document['servicePrincipalId']
+        Cause              = $Document['cause']
+        Grants             = @(@($Document['grants']) | Where-Object { $_ } | ForEach-Object { [pscustomobject]@{ Id = [string]$_['id']; Type = [string]$_['type']; Scopes = [string[]]@($_['scopes']); WriteScopes = [string[]]@($_['writeScopes']) } })
+    }
+}
+
 function New-MbcResultDocument {
     [CmdletBinding()]
     [OutputType([System.Collections.Specialized.OrderedDictionary])]
@@ -121,6 +149,7 @@ function New-MbcResultDocument {
             account = if ($Connection) { [string]$Connection.Account } else { '' }
         }
         disclosure    = if ($Connection) { , @($Connection.Disclosure) } else { , @() }
+        consent       = ConvertTo-MbcConsentDocument -Consent $(if ($Connection -and $Connection.PSObject.Properties['Consent']) { $Connection.Consent } else { $null })
         baseline      = [ordered]@{ name = $Baseline.Name; version = $Baseline.Version; fingerprint = $Baseline.Fingerprint; digest = $Baseline.Digest; sealState = $Baseline.SealState }
         counts        = [ordered]@{ pass = [long]$Run.Counts.Pass; fail = [long]$Run.Counts.Fail; error = [long]$Run.Counts.Error; total = [long]$Run.Counts.Total }
         results       = @($results)
@@ -182,6 +211,7 @@ function ConvertFrom-MbcResultDocument {
         Tool       = [string]$Document['tool']['version']
         Tenant     = [pscustomobject]@{ Id = [string]$t['id']; Name = [string]$t['name']; Domain = [string]$t['domain']; Account = [string]$t['account'] }
         Disclosure = [string[]]@($Document['disclosure'] | Where-Object { $_ })
+        Consent    = ConvertFrom-MbcConsentDocument -Document $(if ($Document.Contains('consent')) { $Document['consent'] } else { $null })
         Baseline   = [pscustomobject]@{ Name = [string]$b['name']; Version = [long]$b['version']; Fingerprint = [string]$b['fingerprint']; Digest = [string]$b['digest']; SealState = [string]$b['sealState'] }
         Results    = $results
         Counts     = Get-MbcCounts -Results $results

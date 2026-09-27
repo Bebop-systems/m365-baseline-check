@@ -469,6 +469,7 @@ function ConvertTo-MbcTextReport {
     & $add 'Tenant' $tenant
     & $add 'Run' "$(Format-MbcRunTime $View.StartedUtc) $($g.Dot) run $($View.RunId)"
     foreach ($d in $View.Disclosure) { & $add 'Sign-in' $d }
+    foreach ($l in (Format-MbcConsentAdvice -Consent $View.Consent)) { & $add 'Consent' $l }
     if (-not $View.Sealed) { & $add 'Warning' 'This result does not match its own seal.' }
     $out.Add('')
     $out.Add("Results   $(Format-MbcCountsText -Counts $View.Counts -Color $false)")

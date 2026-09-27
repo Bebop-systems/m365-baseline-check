@@ -57,6 +57,7 @@ try {
             '14-choose-baseline'   = { param($s) $s.Screen = 'chooser'; $s.ChooserTitle = 'Choose a baseline'; $s.Files = @('~/M365BaselineCheck/baselines/core-tenant.json', '~/M365BaselineCheck/baselines/core-tenant-v4-draft.json', 'presets/example-tenant-hygiene.baseline.json') }
             '15-export-prompt'     = { param($s) $s.Screen = 'prompt'; $s.Prompt = @{ Title = 'Export'; Label = 'Team key, to lock the export. Leave it empty to write plaintext instead.'; Mask = $true; Value = 'mbc-key:1:3f2a9c1e:abcdefgh' } }
             '16-build'             = { param($s) $s.Screen = 'build' }
+            '19-sign-in-details'   = { param($s) [void](Invoke-MbcTuiNavigation -State $s -Action 'signInDetails' -Cap (New-MbcCapability -Width 100 -Height 32)) }
         }
         $cap = New-MbcCapability -Width $Width -Height $Height -Unicode $true
         foreach ($name in $scenes.Keys) {

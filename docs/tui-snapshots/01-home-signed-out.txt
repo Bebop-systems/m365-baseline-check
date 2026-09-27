@@ -11,11 +11,11 @@
     Open a locked result…                                                                        o
     Make a baseline: draft, seal, team key…                                                      s
     Sign in / switch account                                                                     c
+    Sign-in details and consent to remove                                                        g
     Read the app inventory with each run: on                                                     t
     Quit                                                                                         q
 
   Running signs you in first. Every session is read-only by construction.
-
 
 
 

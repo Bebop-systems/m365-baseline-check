@@ -14,9 +14,10 @@
     "4a5d8f65-41da-4de4-8968-e035b65339cf",
     "88d8e3e3-8f55-4a1e-953a-9b9898b8876b",
     "790c1fb9-7f7d-4f88-86a1-ef1f95c05c1b",
-    "75934031-6c7e-415a-99d7-48dbd49e875e"
+    "75934031-6c7e-415a-99d7-48dbd49e875e",
+    "14d82eec-204b-4c2f-b7e8-296a70dab67e"
   ],
-  "_guids": "Module manifest; Microsoft Services tenant; Microsoft tenant; Microsoft Graph app ID; guest roles (member-equivalent, limited, restricted); Global Administrator; Global Reader; Security Reader; Reports Reader; Directory Readers; Message Center Reader; Usage Summary Reports Reader.",
+  "_guids": "Module manifest; Microsoft Services tenant; Microsoft tenant; Microsoft Graph app ID; guest roles (member-equivalent, limited, restricted); Global Administrator; Global Reader; Security Reader; Reports Reader; Directory Readers; Message Center Reader; Usage Summary Reports Reader; Microsoft Graph Command Line Tools app ID.",
   "emails": ["noreply@anthropic.com"],
   "hosts": [
     "http://www.apache.org", "https://www.apache.org", "https://example.com",

@@ -63,7 +63,7 @@ InModuleScope M365BaselineCheck {
             $s = New-MbcTuiState
             Invoke-MbcTuiNavigation -State $s -Action 'toggleInventory' -Cap $script:Cap | Should -BeNullOrEmpty
             $s.IncludeInventory | Should -BeFalse
-            (Get-MbcHomeMenu -State $s)[7].Label | Should -BeLike '*: off'
+            ((Get-MbcHomeMenu -State $s) | Where-Object Action -eq 'toggleInventory').Label | Should -BeLike '*: off'
         }
         It 'says there are no results or inventory yet, rather than showing an empty screen' {
             $s = New-MbcTuiState

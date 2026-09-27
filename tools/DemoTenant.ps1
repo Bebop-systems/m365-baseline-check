@@ -54,6 +54,15 @@ function Initialize-MbcDemoTenant {
         Scopes = @('Application.Read.All', 'Directory.Read.All', 'Policy.Read.All', 'User.Read', 'Directory.ReadWrite.All'); WriteScopes = @('Directory.ReadWrite.All')
         Roles = @('Global Administrator'); RolesCause = $null
         Sessions = [ordered]@{ exo = 'tmpEXO_demo' }; Failed = [ordered]@{ compliance = 'User canceled authentication.' }; Disclosure = @()
+        Consent = [pscustomobject]@{
+            ClientAppId = '14d82eec-204b-4c2f-b7e8-296a70dab67e'; ClientName = 'Microsoft Graph Command Line Tools'
+            ServicePrincipalId = '00000000-0000-4000-8000-000000000901'; Cause = $null; Requested = @()
+            Grants = @([pscustomobject]@{
+                    Id = 'demoGrantAdmin0000000000000000000000000000'; Type = 'admin'
+                    Scopes = @('Application.Read.All', 'Directory.Read.All', 'Directory.ReadWrite.All', 'Policy.Read.All', 'User.Read')
+                    WriteScopes = @('Directory.ReadWrite.All')
+                })
+        }
     }
     $connection.Disclosure = Format-MbcDisclosure -Connection $connection
     # Module scope, so the seams below find it whenever and wherever they are called.
