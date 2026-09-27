@@ -19,6 +19,8 @@ jobs:
       - name: Install Pester and PSScriptAnalyzer
         shell: pwsh
         run: |
+          # Some runner images arrive without PSGallery registered.
+          if (-not (Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue)) { Register-PSRepository -Default }
           Set-PSRepository PSGallery -InstallationPolicy Trusted
           Install-Module Pester -MinimumVersion 5.5.0 -Scope CurrentUser -Force
           Install-Module PSScriptAnalyzer -Scope CurrentUser -Force
