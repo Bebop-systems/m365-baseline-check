@@ -78,5 +78,9 @@ jobs:
             'The zip holds the module and its operator docs. The demo, tests and tools are in the repository at this tag.',
             'README, "Releases and verifying", has the rest.'
           ) -join "`n"
+          # A file, not --notes: a multi-line argument with quotes doesn't survive native argument passing on Windows.
+          $notesFile = Join-Path $env:RUNNER_TEMP 'release-notes.md'
+          [System.IO.File]::WriteAllText($notesFile, $notes, [System.Text.UTF8Encoding]::new($false))
           $pre = if ($tag.StartsWith('v0.')) { @('--prerelease') } else { @() }
-          gh release create $tag "out/release/$zip" out/release/SHA256SUMS.txt --title "M365 Baseline Check $($tag.Substring(1))" --notes $notes @pre
+          gh release create $tag "out/release/$zip" out/release/SHA256SUMS.txt --title "M365 Baseline Check $($tag.Substring(1))" --notes-file $notesFile @pre
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
