@@ -1,10 +1,19 @@
+function Resolve-MbcFullPath {
+    # A path as PowerShell means it: ~ is home, and a relative path is relative to the current location,
+    # not the process's working folder. .NET's GetFullPath knows neither.
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([Parameter(Mandatory)][string] $Path)
+    return $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path)
+}
+
 function Resolve-MbcOutputBase {
     # The full path of the folder the tool would write under, without creating anything.
     [CmdletBinding()]
     [OutputType([string])]
     param([string] $Root)
     $base = if ($Root) { $Root } elseif ($env:M365BC_HOME) { $env:M365BC_HOME } else { Join-Path $HOME 'M365BaselineCheck' }
-    return $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($base)
+    return (Resolve-MbcFullPath -Path $base)
 }
 
 function Get-MbcOutputRoot {
@@ -56,7 +65,7 @@ function Write-MbcFileAtomic {
     #>
     [CmdletBinding()]
     param([Parameter(Mandatory)][string] $Path, [Parameter(Mandatory)][AllowEmptyString()][string] $Text)
-    $full = [System.IO.Path]::GetFullPath($Path)
+    $full = Resolve-MbcFullPath -Path $Path
     $temp = '{0}.{1}.tmp' -f $full, [guid]::NewGuid().ToString('N').Substring(0, 8)
     try {
         # Private from the moment it exists (600 on macOS and Linux), and the move keeps the mode.

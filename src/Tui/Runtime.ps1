@@ -346,6 +346,50 @@ function Get-MbcPresetCandidates {
     return , $found.ToArray()
 }
 
+function Get-MbcDraftPanelLines {
+    <#
+    .SYNOPSIS
+        What the view says after writing a draft: where it went, what's missing and why, and exactly what
+        to do next. Missing checks are grouped by reason, so twenty unreadable checks are one line.
+    #>
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param([Parameter(Mandatory)][string] $Path, [int] $Count, [AllowEmptyCollection()][string[]] $Notes = @())
+    $lines = [System.Collections.Generic.List[string]]::new()
+    foreach ($l in @('', "  Drafted $Count expected value(s) into:", "  $Path", '')) { $lines.Add($l) }
+    if ($Notes.Count -eq 0) {
+        foreach ($l in @(
+                '  Every check has a value. Next:',
+                '  1. Open the file in an editor and review the values under "expected": they are what this',
+                '     tenant has now. Change any you don''t want to keep.',
+                '  2. Back here, s seals it. It''s the chosen baseline already, and runs once sealed.'
+            )) { $lines.Add($l) }
+        return , $lines.ToArray()
+    }
+    $lines.Add("  Left for you to fill in by hand, $($Notes.Count) check$(if ($Notes.Count -ne 1) { 's' }):")
+    $groups = [ordered]@{}
+    foreach ($n in $Notes) {
+        $cut = $n.IndexOf(': ')
+        $id = $n.Substring(0, $cut)
+        $why = $n.Substring($cut + 2)
+        if (-not $groups.Contains($why)) { $groups[$why] = [System.Collections.Generic.List[string]]::new() }
+        $groups[$why].Add($id)
+    }
+    foreach ($why in $groups.Keys) { $lines.Add("    - $why`: $($groups[$why] -join ', ')") }
+    $first = @($groups.Values)[0][0]
+    foreach ($l in @(
+            '',
+            '  Next:',
+            "  1. Open the file in an editor and find `"expected`". Add a line for each check above, such as",
+            "     `"$first`": <value>, with a comma between entries and none after the last. What the value",
+            '     looks like depends on the check''s operator: README, "What a draft looks like", has a table.',
+            '  2. Change any value you don''t want to keep. To drop a check instead, delete it from',
+            '     "checks" (inside "preset") and from "expected".',
+            '  3. Back here, s seals it. Sealing names anything still missing.'
+        )) { $lines.Add($l) }
+    return , $lines.ToArray()
+}
+
 function Invoke-MbcTuiDraft {
     <#
     .SYNOPSIS
@@ -361,6 +405,8 @@ function Invoke-MbcTuiDraft {
     $suggested = Join-Path (Join-Path $State.OutputRoot 'baselines') "$stem.baseline.json"
     $output = Read-MbcLine -State $State -Title 'Draft a baseline' -Label 'Where to write the draft. It reads this tenant and writes what it finds as the expected values; nothing is sealed yet. Enter keeps the suggestion.' -Initial $suggested
     if (-not $output) { $State.Screen = 'build'; return }
+    # ~ and relative paths as PowerShell means them, not as a literal folder named ~.
+    $output = Resolve-MbcFullPath -Path $output.Trim()
     if (Test-Path -LiteralPath $output -PathType Container) { $output = Join-Path $output "$stem.baseline.json" }
     if (Test-Path -LiteralPath $output) {
         $answer = Read-MbcLine -State $State -Title 'Draft a baseline' -Label "$output already exists. Replace it? Type yes to replace."
@@ -380,51 +426,44 @@ function Invoke-MbcTuiDraft {
     try {
         $collected = Invoke-MbcCollection -Plan (Get-MbcRequestPlan -Preset $preset) -Fetch $draftFetch
         $draft = New-MbcBaselineDraft -Preset $preset -Collected $collected -Name ([string]$preset['name']) -Version 1
-        $folder = Split-Path -Parent ([System.IO.Path]::GetFullPath($output))
+        $folder = Split-Path -Parent $output
         if (-not (Test-Path -LiteralPath $folder)) { New-Item -ItemType Directory -Path $folder -Force | Out-Null }
         Write-MbcFileAtomic -Path $output -Text (ConvertTo-MbcPrettyJson -Value $draft.Document)
     }
     catch { Set-MbcTuiMessage -State $State -Text "The draft stopped: $($_.Exception.Message)" -Style 'bad'; return }
-    $lines = [System.Collections.Generic.List[string]]::new()
-    foreach ($l in @('', "  Drafted $($draft.Document['expected'].Count) expected value(s) into:", "  $output", '')) { $lines.Add($l) }
-    if ($draft.Notes.Count) {
-        # Grouped by reason, so twenty unreadable checks are one line, not twenty.
-        $lines.Add("  Left for you to fill in by hand, $($draft.Notes.Count) check$(if ($draft.Notes.Count -ne 1) { 's' }):")
-        $groups = [ordered]@{}
-        foreach ($n in $draft.Notes) {
-            $cut = $n.IndexOf(': ')
-            $id = $n.Substring(0, $cut)
-            $why = $n.Substring($cut + 2)
-            if (-not $groups.Contains($why)) { $groups[$why] = [System.Collections.Generic.List[string]]::new() }
-            $groups[$why].Add($id)
-        }
-        foreach ($why in $groups.Keys) { $lines.Add("    - $why`: $($groups[$why] -join ', ')") }
-        $first = @($groups.Values)[0][0]
-        foreach ($l in @(
-                '',
-                '  Next:',
-                '  1. Open the file in an editor and find "expected". Add a line for each check above, in the',
-                "     same form as the others, such as  `"$first`": true,",
-                '     README, "Make your own baseline", shows what each kind of check takes.',
-                '  2. Change any value you don''t want to keep. To drop a check instead, delete it from',
-                '     "checks" (inside "preset") and from "expected".',
-                '  3. Back here, s seals it. Sealing names anything still missing.'
-            )) { $lines.Add($l) }
-    }
-    else {
-        foreach ($l in @(
-                '  Every check has a value. Next:',
-                '  1. Open the file in an editor and review the values under "expected": they are what this',
-                '     tenant has now. Change any you don''t want to keep.',
-                '  2. Back here, s seals it. It''s the chosen baseline already, and runs once sealed.'
-            )) { $lines.Add($l) }
-        Set-MbcTuiBaseline -State $State -Path $output
-    }
+    if ($draft.Notes.Count -eq 0) { Set-MbcTuiBaseline -State $State -Path $output }
+    $lines = Get-MbcDraftPanelLines -Path $output -Count $draft.Document['expected'].Count -Notes $draft.Notes
     $State.LastDraft = $output
     Set-MbcTuiMessage -State $State -Text ''
-    $State.Panel = @{ Title = 'Draft written'; Lines = $lines.ToArray() }
+    $State.Panel = @{ Title = 'Draft written'; Lines = $lines }
     $State.PanelReturn = 'build'
     $State.Screen = 'panel'
+}
+
+function Get-MbcUnreadableNote {
+    <#
+    .SYNOPSIS
+        A one-line warning naming a .json file in the folder that isn't valid JSON, and where, or ''.
+        Such a file can't be offered in a list, and an unexplained absence is worse than a refusal.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([Parameter(Mandatory)][string] $Folder)
+    if (-not (Test-Path -LiteralPath $Folder -PathType Container)) { return '' }
+    $bad = [System.Collections.Generic.List[string]]::new()
+    foreach ($f in (Get-ChildItem -LiteralPath $Folder -Filter '*.json' -File)) {
+        try { [void](ConvertFrom-MbcJson -Json ([System.IO.File]::ReadAllText($f.FullName))) }
+        catch {
+            $message = $_.Exception.Message
+            $where = ''
+            $at = $message.IndexOf('LineNumber: ')
+            $line = 0
+            if ($at -ge 0 -and [int]::TryParse($message.Substring($at + 12).Split(' ')[0], [ref]$line)) { $where = " near line $($line + 1)" }
+            $bad.Add("$($f.Name)$where")
+        }
+    }
+    if ($bad.Count -eq 0) { return '' }
+    return "Not listed, because it isn't valid JSON: $($bad -join ', '). A comma after the last entry is the usual cause."
 }
 
 function Invoke-MbcTuiCopyPreset {
@@ -575,7 +614,11 @@ function Invoke-MbcTuiEffect {
         }
         'run' { Invoke-MbcTuiRun -State $State }
         'signIn' { Invoke-MbcTuiSignIn -State $State -Switch }
-        'chooseBaseline' { Show-MbcTuiChooser -State $State -Title 'Choose a baseline' -Purpose 'baseline' -Files (Get-MbcBaselineCandidates -State $State) }
+        'chooseBaseline' {
+            Show-MbcTuiChooser -State $State -Title 'Choose a baseline' -Purpose 'baseline' -Files (Get-MbcBaselineCandidates -State $State)
+            $note = Get-MbcUnreadableNote -Folder (Join-Path $State.OutputRoot 'baselines')
+            if ($note) { Set-MbcTuiMessage -State $State -Text $note -Style 'warn' }
+        }
         'openLocked' {
             $files = @(Get-ChildItem -LiteralPath (Join-Path $State.OutputRoot 'results') -Filter '*.locked' -File -ErrorAction SilentlyContinue | Sort-Object Name -Descending | ForEach-Object FullName)
             Show-MbcTuiChooser -State $State -Title 'Open a locked result' -Purpose 'locked' -Files $files
@@ -603,7 +646,7 @@ function Invoke-MbcTuiEffect {
                 $id = Protect-Baseline -Path $path -InformationAction SilentlyContinue
                 # Sealed means ready: choose it, so r runs it.
                 Set-MbcTuiBaseline -State $State -Path $id.Path
-                if ($State.LastDraft -and [System.IO.Path]::GetFullPath($State.LastDraft) -eq $id.Path) { $State.LastDraft = $null }
+                if ($State.LastDraft -and (Resolve-MbcFullPath -Path $State.LastDraft) -eq $id.Path) { $State.LastDraft = $null }
                 Set-MbcTuiMessage -State $State -Text ('Sealed. {0} v{1}, fingerprint {2}, is the chosen baseline: r runs it.' -f $id.Name, $id.Version, $id.Fingerprint) -Style 'ok'
                 $State.Panel = @{ Title = 'Sealed'; Lines = @(
                         '', "  $($id.Name) is v$($id.Version); its fingerprint is $($id.Fingerprint). It's the chosen baseline now.", '',
@@ -628,7 +671,11 @@ function Invoke-MbcTuiEffect {
             }
         }
         'copyPreset' { Invoke-MbcTuiCopyPreset -State $State }
-        'captureDraft' { Show-MbcTuiChooser -State $State -Title 'Draft a baseline: choose a preset' -Purpose 'preset' -Files (Get-MbcPresetCandidates -State $State) }
+        'captureDraft' {
+            Show-MbcTuiChooser -State $State -Title 'Draft a baseline: choose a preset' -Purpose 'preset' -Files (Get-MbcPresetCandidates -State $State)
+            $note = Get-MbcUnreadableNote -Folder (Join-Path $State.OutputRoot 'presets')
+            if ($note) { Set-MbcTuiMessage -State $State -Text $note -Style 'warn' }
+        }
         'newKey' {
             $text = New-MbcTeamKeyText
             $id = $text.Split(':')[2]

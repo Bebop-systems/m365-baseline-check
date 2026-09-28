@@ -55,25 +55,14 @@ try {
             '11-apps'              = { param($s) Open-MbcTuiResults -State $s; $s.Screen = 'apps'; $s.AppIndex = 1 }
             '12-app-detail'        = { param($s) Open-MbcTuiResults -State $s; $s.Screen = 'appDetail'; $s.AppDetail = $view.Inventory.ThirdParty | Where-Object DisplayName -eq 'Handy PDF Signer' }
             '13-help-results'      = { param($s) Open-MbcTuiResults -State $s; $s.Help = $true }
-            '14-choose-baseline'   = { param($s) $s.Screen = 'chooser'; $s.ChooserTitle = 'Choose a baseline'; $s.Files = @('~/M365BaselineCheck/baselines/core-tenant.json', '~/M365BaselineCheck/baselines/core-tenant-v4-draft.json', 'presets/example-tenant-hygiene.baseline.json') }
+            # A home-relative output folder, so the rows show where each file lives without a real path in the snapshot.
+            '14-choose-baseline'   = { param($s) $s.Screen = 'chooser'; $s.ChooserTitle = 'Choose a baseline'; $s.ChooserPurpose = 'baseline'; $s.OutputRoot = '~/M365BaselineCheck'; $s.Files = @('~/M365BaselineCheck/baselines/core-tenant.json', '~/M365BaselineCheck/baselines/core-tenant-v4-draft.json', 'presets/example-tenant-hygiene.baseline.json') }
             '15-export-prompt'     = { param($s) $s.Screen = 'prompt'; $s.Prompt = @{ Title = 'Export'; Label = 'Team key, to lock the export. Leave it empty to write plaintext instead.'; Mask = $true; Value = 'mbc-key:1:3f2a9c1e:abcdefgh' } }
             '16-build'             = { param($s) $s.Screen = 'build' }
             '20-draft-written'     = { param($s)
                 $s.Screen = 'panel'; $s.PanelReturn = 'build'
-                $s.Panel = @{ Title = 'Draft written'; Lines = @(
-                        '', '  Drafted 17 expected value(s) into:', '  ~/M365BaselineCheck/baselines/core-tenant.baseline.json', '',
-                        '  Left for you to fill in by hand, 2 checks:',
-                        "    - couldn't be read (setting not found); fill it in by hand: INTUNE-001",
-                        "    - couldn't be read (cmdlet failed); fill it in by hand: EXO-003", '',
-                        '  Next:',
-                        '  1. Open the file in an editor and find "expected". Add a line for each check above, in the',
-                        '     same form as the others, such as  "INTUNE-001": true,',
-                        '     README, "Make your own baseline", shows what each kind of check takes.',
-                        '  2. Change any value you don''t want to keep. To drop a check instead, delete it from',
-                        '     "checks" (inside "preset") and from "expected".',
-                        '  3. Back here, s seals it. Sealing names anything still missing.'
-                    )
-                }
+                $notes = @("INTUNE-001: couldn't be read (setting not found); fill it in by hand", "EXO-003: couldn't be read (cmdlet failed); fill it in by hand")
+                $s.Panel = @{ Title = 'Draft written'; Lines = (Get-MbcDraftPanelLines -Path '~/M365BaselineCheck/baselines/core-tenant.baseline.json' -Count 17 -Notes $notes) }
             }
             '19-sign-in-details'   = { param($s) [void](Invoke-MbcTuiNavigation -State $s -Action 'signInDetails' -Cap (New-MbcCapability -Width 100 -Height 32)) }
         }

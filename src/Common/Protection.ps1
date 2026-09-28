@@ -47,7 +47,7 @@ function Resolve-MbcRealPath {
     [CmdletBinding()]
     [OutputType([string])]
     param([Parameter(Mandatory)][string] $Path)
-    $full = [System.IO.Path]::GetFullPath($Path)
+    $full = Resolve-MbcFullPath -Path $Path
     $root = [System.IO.Path]::GetPathRoot($full)
     $current = $root
     foreach ($part in $full.Substring($root.Length).Split([char[]]@('/', '\'), [StringSplitOptions]::RemoveEmptyEntries)) {
@@ -119,7 +119,7 @@ function Get-MbcSyncedLocation {
     $sep = [System.IO.Path]::DirectorySeparatorChar
     $norm = { param($p) $p.TrimEnd('/', '\') + $sep }
     # Both as written and with links followed: ~/work may be a link into ~/Library/CloudStorage.
-    $paths = @((& $norm ([System.IO.Path]::GetFullPath($Path))), (& $norm (Resolve-MbcRealPath -Path $Path)))
+    $paths = @((& $norm (Resolve-MbcFullPath -Path $Path)), (& $norm (Resolve-MbcRealPath -Path $Path)))
     foreach ($r in $Roots) {
         $rootForms = @((& $norm ([System.IO.Path]::GetFullPath($r.Path))), (& $norm (Resolve-MbcRealPath -Path $r.Path)))
         foreach ($full in $paths) {

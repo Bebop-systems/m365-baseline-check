@@ -19,9 +19,9 @@ function Unlock-Result {
     )
     # Messages show unless the caller chose otherwise.
     if (-not $PSBoundParameters.ContainsKey('InformationAction')) { $InformationPreference = 'Continue' }
+    if ($OutputDirectory) { $OutputDirectory = Resolve-MbcFullPath -Path $OutputDirectory }
     if ($OutputDirectory -and -not $AllowSyncedOutput) {
-        $full = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutputDirectory)
-        $service = Get-MbcSyncedLocation -Path $full
+        $service = Get-MbcSyncedLocation -Path $OutputDirectory
         if ($service) { throw "$OutputDirectory synchronises to $service, so the plaintext would be copied to the cloud. Choose a folder that stays on this machine, or pass -AllowSyncedOutput if your policy allows it. docs/handling-results.md explains." }
     }
     $envelope = Read-MbcLockedFile -Path $Path

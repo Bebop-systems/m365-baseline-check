@@ -58,6 +58,19 @@ InModuleScope M365BaselineCheck {
             $doc = ConvertFrom-MbcJson -Json ([System.IO.File]::ReadAllText($out))
             $doc['expected'].Contains('EXO-001') | Should -BeFalse
         }
+        It 'writes a relative path where PowerShell means it, and refuses a missing folder before reading anything' {
+            $calls = @{ n = 0 }
+            $counting = { param($Item) $calls.n++; & $script:Fetch $Item }
+            Push-Location $TestDrive
+            try {
+                New-BaselineCapture -PresetPath (Join-Path $script:Fx 'preset-minimal.json') -OutputPath 'relative-draft.json' -Fetch $counting -InformationAction SilentlyContinue
+                Test-Path (Join-Path $TestDrive 'relative-draft.json') | Should -BeTrue
+                $calls.n = 0
+                { New-BaselineCapture -PresetPath (Join-Path $script:Fx 'preset-minimal.json') -OutputPath 'no-such-folder/draft.json' -Fetch $counting } | Should -Throw "*There's no folder*no-such-folder*"
+                $calls.n | Should -Be 0 -Because 'a draft that cannot be written must not cost a sign-in and a read'
+            }
+            finally { Pop-Location }
+        }
         It 'will not overwrite a file unless told to' {
             $out = Join-Path $TestDrive 'exists.json'
             [System.IO.File]::WriteAllText($out, '{}')

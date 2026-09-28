@@ -9,9 +9,9 @@
     - couldn't be read (cmdlet failed); fill it in by hand: EXO-003
 
   Next:
-  1. Open the file in an editor and find "expected". Add a line for each check above, in the
-     same form as the others, such as  "INTUNE-001": true,
-     README, "Make your own baseline", shows what each kind of check takes.
+  1. Open the file in an editor and find "expected". Add a line for each check above, such as
+     "INTUNE-001": <value>, with a comma between entries and none after the last. What the value
+     looks like depends on the check's operator: README, "What a draft looks like", has a table.
   2. Change any value you don't want to keep. To drop a check instead, delete it from
      "checks" (inside "preset") and from "expected".
   3. Back here, s seals it. Sealing names anything still missing.

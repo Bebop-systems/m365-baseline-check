@@ -579,6 +579,21 @@ function Format-MbcAppsBody {
     return , $out.ToArray()
 }
 
+function Get-MbcChooserPlace {
+    # 'yours' (the output folder), 'example' (the tool's own presets) or 'this folder', for a chooser row.
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([Parameter(Mandatory)][hashtable] $State, [Parameter(Mandatory)][string] $Path)
+    if ($State.ChooserPurpose -notin 'baseline', 'preset') { return '' }
+    $sep = [System.IO.Path]::DirectorySeparatorChar
+    $full = Resolve-MbcFullPath -Path $Path
+    $under = { param($root) $root -and $full.StartsWith((Resolve-MbcFullPath -Path $root).TrimEnd('/', '\') + $sep, [StringComparison]::OrdinalIgnoreCase) }
+    if (& $under $State.OutputRoot) { return 'yours' }
+    if (& $under (Join-Path $script:ModuleRoot 'presets')) { return 'example' }
+    if (& $under (Get-Location).ProviderPath) { return 'this folder' }
+    return ''
+}
+
 function Format-MbcChooserBody {
     [CmdletBinding()]
     [OutputType([string[]])]
@@ -591,7 +606,8 @@ function Format-MbcChooserBody {
     }
     $page = [Math]::Max(1, $Height - 2)
     $offset = Get-MbcScrolledOffset -Index $State.ChooserIndex -Offset 0 -Page $page
-    $items = @($files | ForEach-Object { [pscustomobject]@{ Label = [System.IO.Path]::GetFileName($_); Key = ''; Action = 'choose' } })
+    # Where each file lives, on the right: it tells yours from the example when both have the same name.
+    $items = @($files | ForEach-Object { [pscustomobject]@{ Label = [System.IO.Path]::GetFileName($_); Key = (Get-MbcChooserPlace -State $State -Path $_); Action = 'choose' } })
     $shown = @($items | Select-Object -Skip $offset -First $page)
     foreach ($line in (Format-MbcMenu -Items $shown -Selected ($State.ChooserIndex - $offset) -Width $Cap.Width -Glyphs $Glyphs -Color $Cap.Color)) { $out.Add($line) }
     $out.Add('')

@@ -139,19 +139,20 @@ Press `s` on the home screen (*Make a baseline*). Then:
 ### What a draft looks like
 
 A draft is the preset, copied in whole under `"preset"`, followed by `"expected"`: one entry per check,
-by its ID. A check the tool couldn't read is simply missing from `"expected"`:
+by its ID, holding what the tenant has now. A check is missing from `"expected"` when the tool couldn't
+read it, or when its operator (`notEquals`, `contains`, `matches`) needs a value one tenant can't supply:
 
 ```json
   "expected": {
     "ENTRA-001": false,
-    "ENTRA-003": ["adminsAndGuestInviters", "none"],
-    "EXO-001": false,
-    "EXO-004": 3
+    "ENTRA-003": ["adminsAndGuestInviters"],
+    "ENTRA-006": 2,
+    "EXO-001": false
   }
 ```
 
-To fill one in, add a line in the same form. What a value looks like depends on the check's `operator`,
-which you'll find on that check under `"preset"` › `"checks"`:
+To fill one in, add a line in the same form, with a comma between entries and none after the last. What
+a value looks like depends on the check's `operator`, on that check under `"preset"` › `"checks"`:
 
 | Operator | Expected value | Example |
 |---|---|---|
@@ -176,11 +177,13 @@ proves which version a run used.
 ### Without the view
 
 ```powershell
-Copy-Item ./presets/example-tenant-hygiene.json ~/M365BaselineCheck/presets/core-tenant.json   # then edit it
-New-BaselineCapture -PresetPath ~/M365BaselineCheck/presets/core-tenant.json -OutputPath ~/M365BaselineCheck/baselines/core-tenant.json
-Protect-Baseline ~/M365BaselineCheck/baselines/core-tenant.json   # seal; prints the line to record
-Test-Baseline ~/M365BaselineCheck/baselines/core-tenant.json      # name, version and seal state
-Start-BaselineCheck -Baseline ~/M365BaselineCheck/baselines/core-tenant.json
+$mine = "$HOME/M365BaselineCheck"
+New-Item -ItemType Directory -Force "$mine/presets", "$mine/baselines" | Out-Null      # the tool also makes these on first run
+Copy-Item ./presets/example-tenant-hygiene.json "$mine/presets/core-tenant.json"       # then edit it
+New-BaselineCapture -PresetPath "$mine/presets/core-tenant.json" -OutputPath "$mine/baselines/core-tenant.json" -Name 'Core tenant'
+Protect-Baseline "$mine/baselines/core-tenant.json"   # seal; prints the line to record
+Test-Baseline "$mine/baselines/core-tenant.json"      # name, version and seal state
+Start-BaselineCheck -Baseline "$mine/baselines/core-tenant.json"
 ```
 
 ## Sign-in and sessions
@@ -237,6 +240,10 @@ Choose the same account each time; the tool checks that the sessions are in the 
 
 **"There's no preset at …" or "That is a folder".** A preset or baseline is a file. In a list, `p` lets
 you type a path; give the file's path, not its folder's.
+
+**My preset or baseline isn't in the list.** If it isn't valid JSON, the list says so and names it, with
+the line of the problem; a comma after the last entry is the usual cause. The lists show
+`~/M365BaselineCheck`, the current folder and the tool's example; anything elsewhere, `p` opens by path.
 
 **"Not sealed" with a list of checks.** The draft is missing expected values. Add them, as in
 [What a draft looks like](#what-a-draft-looks-like), then seal again.

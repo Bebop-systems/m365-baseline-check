@@ -224,6 +224,23 @@ InModuleScope M365BaselineCheck {
             @($script:Frames | Where-Object { $_ -like "*won't do as a file name*" }).Count | Should -BeGreaterThan 0
         }
 
+        It 'names a preset that is not valid JSON, and where, instead of hiding it' {
+            $root = Get-MbcOutputRoot -Root (Join-Path $TestDrive ([guid]::NewGuid().ToString('N')))
+            [System.IO.File]::WriteAllText((Join-Path $root 'presets/broken.json'), "{`n  `"name`": `"x`",`n}")
+            [System.IO.File]::WriteAllText((Join-Path $root 'presets/fine.json'), '{}')
+            Get-MbcUnreadableNote -Folder (Join-Path $root 'presets') | Should -BeLike "*isn't valid JSON: broken.json near line *comma after the last entry*"
+            Get-MbcUnreadableNote -Folder (Join-Path $root 'baselines') | Should -BeExactly ''
+        }
+
+        It 'marks each chooser row with where the file lives' {
+            $state = New-MbcTuiState -OutputRoot (Get-MbcOutputRoot -Root (Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))))
+            $state.ChooserPurpose = 'baseline'
+            Get-MbcChooserPlace -State $state -Path (Join-Path $state.OutputRoot 'baselines/a.json') | Should -Be 'yours'
+            Get-MbcChooserPlace -State $state -Path (Join-Path $script:ModuleRoot 'presets/example-tenant-hygiene.baseline.json') | Should -Be 'example'
+            $state.ChooserPurpose = 'locked'
+            Get-MbcChooserPlace -State $state -Path (Join-Path $state.OutputRoot 'results/r.locked') | Should -BeExactly ''
+        }
+
         It 'says so when a folder is given where a file is wanted' {
             Start-Session @('b', 'p', $TestDrive, '<Enter>', '<Escape>', 'q') -NoBaseline | Out-Null
             @($script:Frames | Where-Object { $_ -like '*That is a folder. Choose a file: a baseline (.json).*' }).Count | Should -BeGreaterThan 0
