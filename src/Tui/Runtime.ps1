@@ -443,7 +443,7 @@ function Invoke-MbcTuiDraft {
 function Get-MbcUnreadableNote {
     <#
     .SYNOPSIS
-        A one-line warning naming a .json file in the folder that isn't valid JSON, and where, or ''.
+        A one-line warning naming a .json file in the folder that can't be read, and where, or ''.
         Such a file can't be offered in a list, and an unexplained absence is worse than a refusal.
     #>
     [CmdletBinding()]
@@ -463,7 +463,8 @@ function Get-MbcUnreadableNote {
         }
     }
     if ($bad.Count -eq 0) { return '' }
-    return "Not listed, because it isn't valid JSON: $($bad -join ', '). A comma after the last entry is the usual cause."
+    # The reader is strict: besides broken JSON it refuses floating-point numbers and repeated keys.
+    return "Not listed, because it can't be read as JSON: $($bad -join ', '). A comma after the last entry is the usual cause."
 }
 
 function Invoke-MbcTuiCopyPreset {

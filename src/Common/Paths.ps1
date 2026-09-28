@@ -1,10 +1,16 @@
 function Resolve-MbcFullPath {
     # A path as PowerShell means it: ~ is home, and a relative path is relative to the current location,
-    # not the process's working folder. .NET's GetFullPath knows neither.
+    # not the process's working folder. .NET's GetFullPath knows neither. Only a file-system path is
+    # accepted: another provider's path (Env:\x, say) would come back as text that .NET then reads as
+    # relative to the working folder, so what was checked and what was written would differ.
     [CmdletBinding()]
     [OutputType([string])]
     param([Parameter(Mandatory)][string] $Path)
-    return $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path)
+    $provider = $null
+    $drive = $null
+    $full = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path, [ref]$provider, [ref]$drive)
+    if ($provider.Name -ne 'FileSystem') { throw "'$Path' isn't a file-system path (it's on the $($provider.Name) drive). Give a folder or file path." }
+    return $full
 }
 
 function Resolve-MbcOutputBase {

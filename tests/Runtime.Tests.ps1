@@ -228,7 +228,7 @@ InModuleScope M365BaselineCheck {
             $root = Get-MbcOutputRoot -Root (Join-Path $TestDrive ([guid]::NewGuid().ToString('N')))
             [System.IO.File]::WriteAllText((Join-Path $root 'presets/broken.json'), "{`n  `"name`": `"x`",`n}")
             [System.IO.File]::WriteAllText((Join-Path $root 'presets/fine.json'), '{}')
-            Get-MbcUnreadableNote -Folder (Join-Path $root 'presets') | Should -BeLike "*isn't valid JSON: broken.json near line *comma after the last entry*"
+            Get-MbcUnreadableNote -Folder (Join-Path $root 'presets') | Should -BeLike "*can't be read as JSON: broken.json near line *comma after the last entry*"
             Get-MbcUnreadableNote -Folder (Join-Path $root 'baselines') | Should -BeExactly ''
         }
 

@@ -241,8 +241,8 @@ Choose the same account each time; the tool checks that the sessions are in the 
 **"There's no preset at …" or "That is a folder".** A preset or baseline is a file. In a list, `p` lets
 you type a path; give the file's path, not its folder's.
 
-**My preset or baseline isn't in the list.** If it isn't valid JSON, the list says so and names it, with
-the line of the problem; a comma after the last entry is the usual cause. The lists show
+**My preset or baseline isn't in the list.** If it can't be read as JSON, the list says so and names it,
+with the line of the problem; a comma after the last entry is the usual cause. The lists show
 `~/M365BaselineCheck`, the current folder and the tool's example; anything elsewhere, `p` opens by path.
 
 **"Not sealed" with a list of checks.** The draft is missing expected values. Add them, as in

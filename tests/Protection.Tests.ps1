@@ -64,6 +64,14 @@ InModuleScope M365BaselineCheck {
             try { Resolve-MbcFullPath -Path 'sub/x.json' | Should -Be ([System.IO.Path]::GetFullPath((Join-Path $TestDrive 'sub/x.json'))) }
             finally { Pop-Location }
         }
+        It 'refuses a path on a drive that isn''t the file system, before writing anything' {
+            { Resolve-MbcFullPath -Path 'Env:\mbc-probe.json' } | Should -Throw "*isn't a file-system path*Environment*"
+            { Write-MbcFileAtomic -Path 'Env:\mbc-probe.json' -Text 'x' } | Should -Throw "*isn't a file-system path*"
+            Push-Location 'Env:\'
+            try { { Resolve-MbcFullPath -Path 'relative.json' } | Should -Throw "*isn't a file-system path*" }
+            finally { Pop-Location }
+            Test-Path (Join-Path (Get-Location).ProviderPath 'mbc-probe.json') | Should -BeFalse
+        }
         It 'writes a relative path under the current location, never a literal folder' {
             Push-Location $TestDrive
             try { Write-MbcFileAtomic -Path 'written.txt' -Text 'x' }
