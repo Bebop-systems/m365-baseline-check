@@ -30,11 +30,13 @@ BeforeAll {
         # Writes to a variable by name, which the callable proof below can't see.
         'Set-Variable'              = @()
         'New-Variable'              = @()
+        'Remove-Variable'           = @()
+        'Clear-Variable'            = @()
         'Tee-Object'                = @()
     }
     # Text that means reaching a command, or the network, by a route the parser can't follow.
     $script:Indirection = @(
-        'InvokeCommand', 'GetScriptBlock', 'Parser]::Parse', 'PSDefaultParameterValues', 'Get-Variable',
+        'InvokeCommand', 'GetScriptBlock', 'Parser]::Parse', 'PSDefaultParameterValues', 'Get-Variable', 'PSVariable', 'Variable:',
         'Alias:', 'Function:', 'ExportedCmdlets', 'ExportedCommands', 'ExportedFunctions', 'CmdletInfo', 'GraphRequestMethod',
         'Net.Http', 'SocketsHttpHandler', 'HttpMessage', 'TcpClient', 'Net.Sockets'
     )
@@ -94,6 +96,16 @@ BeforeAll {
         $ast = Get-Ast $Text
         foreach ($c in (Get-Commands $ast)) {
             $first = $c.CommandElements[0]
+            # A -*Variable parameter names the variable it writes; that name must be written out.
+            $elements = $c.CommandElements
+            for ($i = 1; $i -lt $elements.Count; $i++) {
+                $e = $elements[$i]
+                if ($e -isnot [System.Management.Automation.Language.CommandParameterAst]) { continue }
+                $pn = $e.ParameterName.ToLowerInvariant()
+                if (-not ($pn.EndsWith('variable') -or $pn -in 'ov', 'pv', 'ev', 'wv', 'iv')) { continue }
+                $arg = if ($e.Argument) { $e.Argument } elseif ($i + 1 -lt $elements.Count) { $elements[$i + 1] } else { $null }
+                if ($arg -isnot [System.Management.Automation.Language.StringConstantExpressionAst] -or $arg.StringConstantType -eq 'DoubleQuoted') { "-$($e.ParameterName) with a computed name: $($c.Extent.Text)" }
+            }
             if ($c.InvocationOperator -eq 'Dot') { "dot-sourcing: $($c.Extent.Text)"; continue }
             $plain = $first -is [System.Management.Automation.Language.StringConstantExpressionAst] -and $first.StringConstantType -ne 'DoubleQuoted'
             $block = $first -is [System.Management.Automation.Language.ScriptBlockExpressionAst]
@@ -150,7 +162,7 @@ BeforeAll {
     #   [scriptblock] cast (PowerShell refuses a string), another proven variable, or sit in the same
     #   scope as a typed parameter of that name, which converts it;
     # - any other write fails: [ref], multiple assignment, a foreach variable, -OutVariable and the like.
-    $script:TypedCallable = @('scriptblock', 'System.Management.Automation.ScriptBlock', 'CommandInfo', 'System.Management.Automation.CommandInfo')
+    $script:TypedCallable = @('scriptblock', 'Management.Automation.ScriptBlock', 'System.Management.Automation.ScriptBlock', 'CommandInfo', 'Management.Automation.CommandInfo', 'System.Management.Automation.CommandInfo')
 
     function script:Get-NearestScriptBlock($Node) {
         $n = $Node.Parent
@@ -327,7 +339,7 @@ Describe 'The read-only checks catch what they claim' {
     }
     It 'catches a call by computed name, dot-sourcing, .Invoke(), and a write verb given to a command in a variable' {
         foreach ($code in "& ('Invoke-' + 'MgGraphRequest') -Method POST", '& "Invoke-$x" -Method POST', '. (Get-Command Invoke-MgGraphRequest)', '. $path', '$c.Invoke()',
-            '$ExecutionContext.InvokeCommand.InvokeScript("x")', '& $c DELETE $u', '& $c -Uri $u PATCH', '& $n -Method $v -Uri $u', '& $n -Method 4 -Uri $u', '& $n -Meth:$m', '& $r -Command $c -Parameters @{ Method = ''DELETE'' }', '& $r -Comm $c') {
+            '$ExecutionContext.InvokeCommand.InvokeScript("x")', '& $c DELETE $u', '& $c -Uri $u PATCH', 'Get-Thing -PipelineVariable $pn', 'Get-Thing -ov:$n', '& $n -Method $v -Uri $u', '& $n -Method 4 -Uri $u', '& $n -Meth:$m', '& $r -Command $c -Parameters @{ Method = ''DELETE'' }', '& $r -Comm $c') {
             Find-ComputedCalls $code | Should -Not -BeNullOrEmpty -Because $code
         }
         Find-ComputedCalls '& { param($x) $x } 1; & $say ''done''' | Should -BeNullOrEmpty -Because 'a script block or a variable called with ordinary arguments is fine'
@@ -373,6 +385,8 @@ Describe 'The read-only checks catch what they claim' {
                 'function F { param($Item) Set-Variable -Name fmt -Value $Item.F }',
                 'function F { param($Item) sv fmt $Item.F }',
                 'function F { param($Item) New-Variable fmt $Item.F }',
+                'function F { Remove-Variable h }',
+                'function F { Clear-Variable h }',
                 'function F { Get-Thing | Tee-Object -Variable h }'
             )) { Find-Unconfined $code | Should -Not -BeNullOrEmpty -Because $code }
         foreach ($code in @(
@@ -384,7 +398,8 @@ Describe 'The read-only checks catch what they claim' {
                 'function F { $add = { 1 }; $add = { 2 }; & $add }',
                 'function F { param([scriptblock] $Fetch) if (-not $Fetch) { $Fetch = { 1 } }; & $Fetch }',
                 'function F { param([scriptblock] $Fetch) $Fetch = $State.Other; & $Fetch }',
-                'function F { $say = { param($t) $t }; $each = { param($x) & $say $x }; & $each 1 }'
+                'function F { $say = { param($t) $t }; $each = { param($x) & $say $x }; & $each 1 }',
+                'function F { param([Management.Automation.ScriptBlock] $Hook) & $Hook }'
             )) { Find-UnprovenCallables $code | Should -BeNullOrEmpty -Because $code }
     }
     It 'names the text routes it bans' {
@@ -397,6 +412,8 @@ Describe 'The read-only checks catch what they claim' {
                 '(Get-Module Microsoft.Graph.Authentication).ExportedCmdlets["Invoke-MgGraphRequest"]',
                 '[System.Management.Automation.CmdletInfo]::new("Get-Thing", [object])',
                 'Get-Variable PSDefault* -ValueOnly',
+                '$ExecutionContext.SessionState.PSVariable.Set("h", $Item.Hook)',
+                'Set-Item -Path variable:h -Value $Item.Hook',
                 '-Method ([Microsoft.Graph.PowerShell.Authentication.Models.GraphRequestMethod]::DELETE)'
             )) { @($script:Indirection | Where-Object { $code.IndexOf($_, [StringComparison]::OrdinalIgnoreCase) -ge 0 }).Count | Should -BeGreaterThan 0 -Because $code }
     }
