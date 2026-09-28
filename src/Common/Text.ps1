@@ -125,14 +125,19 @@ function Format-MbcPad {
 }
 
 function Split-MbcWrapped {
-    # Word-wraps plain text to a width. A word longer than the width is cut with an ellipsis.
+    # Word-wraps plain text to a width. A word longer than the width is cut with an ellipsis, or with
+    # -BreakLong broken across lines, for text that must be shown whole, such as a path.
     [CmdletBinding()]
     [OutputType([string[]])]
-    param([AllowEmptyString()][AllowNull()][string] $Text, [int] $Width, [string] $Ellipsis = '…')
+    param([AllowEmptyString()][AllowNull()][string] $Text, [int] $Width, [string] $Ellipsis = '…', [switch] $BreakLong)
     $lines = [System.Collections.Generic.List[string]]::new()
     $current = ''
     foreach ($word in ([string]$Text).Split([char[]]@(' ', "`t", "`n", "`r"), [System.StringSplitOptions]::RemoveEmptyEntries)) {
-        if ($word.Length -gt $Width) { $word = Limit-MbcText $word $Width $Ellipsis }
+        if ($word.Length -gt $Width -and $BreakLong -and $Width -gt 0) {
+            if ($current.Length -gt 0) { $lines.Add($current); $current = '' }
+            while ($word.Length -gt $Width) { $lines.Add($word.Substring(0, $Width)); $word = $word.Substring($Width) }
+        }
+        elseif ($word.Length -gt $Width) { $word = Limit-MbcText $word $Width $Ellipsis }
         if ($current.Length -eq 0) { $current = $word }
         elseif ($current.Length + 1 + $word.Length -le $Width) { $current += " $word" }
         else { $lines.Add($current); $current = $word }

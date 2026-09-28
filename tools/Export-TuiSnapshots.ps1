@@ -35,7 +35,8 @@ try {
         }
         $rows = { param($s) Get-MbcTuiRows -State $s }
         $scenes = [ordered]@{
-            '01-home-signed-out'   = { param($s) $s.Connection = $null; $s.View = $null; $s.Message = 'Chose Example tenant hygiene v1, fingerprint 166cee0ba798. Sealed and unchanged.'; $s.MessageStyle = 'ok' }
+            '00-home-first-run'    = { param($s) $s.Connection = $null; $s.View = $null; $s.Baseline = $null }
+            '01-home-signed-out'   = { param($s) $s.Connection = $null; $s.View = $null; $s.Message = ('Chose {0} v{1}, fingerprint {2}. Sealed and unchanged.' -f $baseline.Name, $baseline.Version, $baseline.Fingerprint); $s.MessageStyle = 'ok' }
             '02-home'              = { param($s) $s.MenuIndex = 0 }
             '03-run'               = { param($s)
                 $s.Screen = 'run'; $s.Tick = 3
@@ -57,6 +58,23 @@ try {
             '14-choose-baseline'   = { param($s) $s.Screen = 'chooser'; $s.ChooserTitle = 'Choose a baseline'; $s.Files = @('~/M365BaselineCheck/baselines/core-tenant.json', '~/M365BaselineCheck/baselines/core-tenant-v4-draft.json', 'presets/example-tenant-hygiene.baseline.json') }
             '15-export-prompt'     = { param($s) $s.Screen = 'prompt'; $s.Prompt = @{ Title = 'Export'; Label = 'Team key, to lock the export. Leave it empty to write plaintext instead.'; Mask = $true; Value = 'mbc-key:1:3f2a9c1e:abcdefgh' } }
             '16-build'             = { param($s) $s.Screen = 'build' }
+            '20-draft-written'     = { param($s)
+                $s.Screen = 'panel'; $s.PanelReturn = 'build'
+                $s.Panel = @{ Title = 'Draft written'; Lines = @(
+                        '', '  Drafted 17 expected value(s) into:', '  ~/M365BaselineCheck/baselines/core-tenant.baseline.json', '',
+                        '  Left for you to fill in by hand, 2 checks:',
+                        "    - couldn't be read (setting not found); fill it in by hand: INTUNE-001",
+                        "    - couldn't be read (cmdlet failed); fill it in by hand: EXO-003", '',
+                        '  Next:',
+                        '  1. Open the file in an editor and find "expected". Add a line for each check above, in the',
+                        '     same form as the others, such as  "INTUNE-001": true,',
+                        '     README, "Make your own baseline", shows what each kind of check takes.',
+                        '  2. Change any value you don''t want to keep. To drop a check instead, delete it from',
+                        '     "checks" (inside "preset") and from "expected".',
+                        '  3. Back here, s seals it. Sealing names anything still missing.'
+                    )
+                }
+            }
             '19-sign-in-details'   = { param($s) [void](Invoke-MbcTuiNavigation -State $s -Action 'signInDetails' -Cap (New-MbcCapability -Width 100 -Height 32)) }
         }
         $cap = New-MbcCapability -Width $Width -Height $Height -Unicode $true

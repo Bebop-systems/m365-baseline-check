@@ -25,11 +25,11 @@ treat it like any internal security assessment.
 | What | Where | Classification | At rest |
 |---|---|---|---|
 | Team key | the team's password manager | **Secret** | never on disk by this tool |
-| Locked bundle, `result-<time>.locked` | `results/` | Confidential, **encrypted** | AES-256-GCM |
+| Locked export, `result-<time>.locked` (the "bundle") | `results/` | Confidential, **encrypted** | AES-256-GCM |
 | `result.json`, `result.csv`, `apps.csv`, `report.txt` | inside the bundle; plaintext only with `-NoLock` or when unlocked to disk | **Confidential** | plaintext |
 | Run log, `run-<time>.jsonl` | `logs/`, moved into the bundle when you export locked | **Confidential** | plaintext until then |
 | `summary.md` | `results/` | **Internal** | plaintext, redacted by construction |
-| Baselines and presets | `baselines/`, `presets/`, or your team's repository | **Internal** | plaintext: expected values, no tenant identity |
+| Baselines and presets | `baselines/`, `presets/`, or your team's repository | **Internal** | plaintext: checks and expected values; look before sharing a baseline outside the team, since a value can name a domain or a policy |
 
 ## The rules
 
@@ -86,7 +86,7 @@ tool shows it, with its ID, when you quit. If it was granted for this work, remo
 
 ## What the tool does for you
 
-- Reads only: GET-only Graph, declared `Get-` cmdlets, read scopes (invariant 1).
+- Reads only: GET-only Graph, declared `Get-` cmdlets, read scopes (CLAUDE.md, invariant 1, and the tests that hold it).
 - Closes every session on quit, on account switch and at the end of a plain run or capture; keeps
   Graph's token cache in the process only (see *Session hygiene* in CLAUDE.md).
 - Never writes a token, an authorization header or the team key to any file.
@@ -104,8 +104,8 @@ tool shows it, with its ID, when you quit. If it was granted for this work, remo
 ## Checking a Mac before the first run
 
 1. `fdesetup status` says `FileVault is On.`
-2. `echo $HOME/M365BaselineCheck` is not under `~/Library/Mobile Documents` or
-   `~/Library/CloudStorage`, and `~/Documents` isn't synced by iCloud if you chose a folder there.
+2. The output folder (`~/M365BaselineCheck` unless you set `M365BC_HOME`) isn't under iCloud Drive or
+   `~/Library/CloudStorage`. The tool refuses one that is, so a refusal at start-up is the sign.
 3. After a run, `ls -la ~/M365BaselineCheck ~/M365BaselineCheck/logs` shows `drwx------` on the
    folders and `-rw-------` on the files. If the folder predates this version, tighten it first
    (see rule 3).

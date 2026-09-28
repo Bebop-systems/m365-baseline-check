@@ -1,23 +1,23 @@
  M365 Baseline Check · Make a baseline ────────────────── Example tenant hygiene v2 · dc1e31c4226c
  ● Example Ltd · example.com  as admin@example.com  ✗ Security & Compliance not connected
 
-  A preset says what to check. A baseline is a preset plus the values you expect, sealed.
+  A preset lists what to check. A baseline is a preset plus the values you expect, sealed so
+  any later edit shows.
 
-  1. Start from a preset: copy presets/example-tenant-hygiene.json into
-     ~/M365BaselineCheck/presets/ and edit it. CLAUDE.md explains every field.
-  2. Draft a baseline: reads this tenant and writes what it finds as the expected values.
-  3. Review the draft, change any value you do not want to keep, then seal it. Only sealed
-     baselines run.
+  1. Draft: choose a preset, and the tool reads this tenant and writes what it finds as the
+     expected values. To try it, choose the example preset.
+  2. Review: open the draft, add any value it lists as missing, and change any you don't want
+     to keep.
+  3. Seal: only sealed baselines run. Sealing makes it the chosen baseline, so r runs it.
 
-  Keep your own presets and baselines in ~/M365BaselineCheck or a private repository, never in
-  this public one.
+  To choose your own checks, copy the example preset first and edit the copy. Your presets and
+  baselines stay in ~/M365BaselineCheck or a private repository, never in this public one.
 
-  ▸ Draft a baseline from a preset, reading this tenant…                                         d
-    Seal a baseline, once you have reviewed it…                                                  s
+  ▸ Draft a baseline from a preset (reads this tenant)…                                          d
+    Seal a baseline you have reviewed…                                                           s
+    Copy the example preset, to choose your own checks…                                          p
     Generate a team key, for locking exports                                                     n
     Back                                                                                       Esc
-
-
 
 
 

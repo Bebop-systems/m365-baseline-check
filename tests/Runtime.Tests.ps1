@@ -89,7 +89,7 @@ InModuleScope M365BaselineCheck {
 
         It 'refuses to run without a baseline, and says why' {
             $s = Start-Session @('r', '<Escape>') -NoBaseline
-            @($script:Frames | Where-Object { $_ -like '*Choose a baseline first: press b.*' }).Count | Should -BeGreaterThan 0
+            @($script:Frames | Where-Object { $_ -like '*Choose a baseline first: b. To make your own, s.*' }).Count | Should -BeGreaterThan 0
             $s.View | Should -BeNullOrEmpty
         }
 
@@ -177,7 +177,51 @@ InModuleScope M365BaselineCheck {
             $s.Baseline | Should -BeNullOrEmpty
             $panel = @($script:Frames | Where-Object { $_ -like '*Draft written*' })[-1]
             $panel | Should -BeLike '*Left for you to fill in by hand, * checks:*not connected*EXO-001*PUR-002*'
-            $panel | Should -BeLike "*It can't run until it is sealed.*"
+            $panel | Should -BeLike '*s seals it. Sealing names anything still missing.*'
+        }
+
+        It 'offers the new draft for sealing, and lists everything still missing when it can''t be sealed' {
+            $s = Start-Session @('s', 'd', '<Enter>', '<Enter>', '<Escape>', 's', '<Enter>', '<Escape>', '<Escape>', 'q') -NoBaseline
+            $draft = Join-Path $s.OutputRoot 'baselines/example-tenant-hygiene.baseline.json'
+            @($script:Frames | Where-Object { $_ -like '*Seal a baseline*The baseline to seal*' } | Select-Object -First 1) | Should -BeLike "*$([System.IO.Path]::GetFileName($draft))*" -Because 'the draft just written is suggested'
+            $panel = @($script:Frames | Where-Object { $_ -like '*Not sealed*' })[-1]
+            $panel | Should -BeLike '*Fix these in the file, then seal it again*has no expected value*'
+            $s.LastDraft | Should -Be $draft -Because 'an unsealed draft stays the one to offer'
+        }
+
+        It 'seals the suggested draft and makes it the chosen baseline' {
+            $state = New-MbcTuiState -OutputRoot (Get-MbcOutputRoot -Root (Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))))
+            $state.Seams = $script:Seams
+            Set-MbcTuiBaseline -State $state -Path (Join-Path $script:Fx 'baseline-minimal.json')
+            $draft = Join-Path $state.OutputRoot 'baselines/minimal-draft.json'
+            Copy-Item (Join-Path $script:Fx 'baseline-minimal.json') $draft
+            $state.LastDraft = $draft
+            $script:MbcKeyQueue = [System.Collections.Generic.Queue[object]]::new()
+            $script:MbcKeyQueue.Enqueue((K '<Enter>'))
+            try { Invoke-MbcTuiEffect -State $state -Effect 'sealFile' }
+            finally { $script:MbcKeyQueue = $null }
+            $state.Baseline.Path | Should -Be ([System.IO.Path]::GetFullPath($draft))
+            $state.Baseline.SealState | Should -Be 'Sealed'
+            $state.LastDraft | Should -BeNullOrEmpty
+            $state.Message | Should -BeLike '*is the chosen baseline: r runs it.*'
+        }
+
+        It 'copies the example preset under a name, for editing, and refuses to overwrite' {
+            # Clears the suggested name, my-tenant, before typing another.
+            $clear = @('<Backspace>') * 'my-tenant'.Length
+            $s = Start-Session (@('s', 'p') + $clear + @('core-tenant', '<Enter>', '<Escape>', 'p') + $clear + @('core-tenant', '<Enter>', 'q')) -NoBaseline
+            $copy = Join-Path $s.OutputRoot 'presets/core-tenant.json'
+            Test-Path $copy | Should -BeTrue
+            $preset = Read-MbcPreset -Path $copy
+            $preset['name'] | Should -Be 'core-tenant'
+            $preset['checks'].Count | Should -Be (Read-MbcPreset -Path (Join-Path $script:ModuleRoot 'presets/example-tenant-hygiene.json'))['checks'].Count
+            # The panel wraps a long path rather than cutting it; joined back, the whole path is there.
+            $panel = @($script:Frames | Where-Object { $_ -like '*Preset copied*lists it first*' })[-1]
+            ($panel -replace '\n\s+', '') | Should -BeLike "*$copy*"
+            @($script:Frames | Where-Object { $_ -like "*There's a preset called core-tenant already*" }).Count | Should -BeGreaterThan 0
+            (Get-MbcPresetCandidates -State $s)[0] | Should -Be $copy -Because 'your own presets are offered first'
+            Start-Session (@('s', 'p') + $clear + @('my tenant!', '<Enter>', 'q')) -NoBaseline | Out-Null
+            @($script:Frames | Where-Object { $_ -like "*won't do as a file name*" }).Count | Should -BeGreaterThan 0
         }
 
         It 'says so when a folder is given where a file is wanted' {

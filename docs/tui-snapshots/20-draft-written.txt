@@ -1,0 +1,32 @@
+ M365 Baseline Check · Draft written ──────────────────── Example tenant hygiene v2 · dc1e31c4226c
+ ● Example Ltd · example.com  as admin@example.com  ✗ Security & Compliance not connected
+
+  Drafted 17 expected value(s) into:
+  ~/M365BaselineCheck/baselines/core-tenant.baseline.json
+
+  Left for you to fill in by hand, 2 checks:
+    - couldn't be read (setting not found); fill it in by hand: INTUNE-001
+    - couldn't be read (cmdlet failed); fill it in by hand: EXO-003
+
+  Next:
+  1. Open the file in an editor and find "expected". Add a line for each check above, in the
+     same form as the others, such as  "INTUNE-001": true,
+     README, "Make your own baseline", shows what each kind of check takes.
+  2. Change any value you don't want to keep. To drop a check instead, delete it from
+     "checks" (inside "preset") and from "expected".
+  3. Back here, s seals it. Sealing names anything still missing.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  Enter done   Esc back

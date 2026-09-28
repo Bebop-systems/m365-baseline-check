@@ -2,20 +2,21 @@
 # any effect for the runtime to carry out, and Format-MbcFrame, which draws the whole screen as strings.
 
 $script:MbcBuildMenu = @(
-    [pscustomobject]@{ Label = 'Draft a baseline from a preset, reading this tenant…'; Key = 'd'; Action = 'captureDraft' }
-    [pscustomobject]@{ Label = 'Seal a baseline, once you have reviewed it…'; Key = 's'; Action = 'sealFile' }
+    [pscustomobject]@{ Label = 'Draft a baseline from a preset (reads this tenant)…'; Key = 'd'; Action = 'captureDraft' }
+    [pscustomobject]@{ Label = 'Seal a baseline you have reviewed…'; Key = 's'; Action = 'sealFile' }
+    [pscustomobject]@{ Label = 'Copy the example preset, to choose your own checks…'; Key = 'p'; Action = 'copyPreset' }
     [pscustomobject]@{ Label = 'Generate a team key, for locking exports'; Key = 'n'; Action = 'newKey' }
     [pscustomobject]@{ Label = 'Back'; Key = 'Esc'; Action = 'back' }
 )
 
 $script:MbcBuildGuide = @(
-    'A preset says what to check. A baseline is a preset plus the values you expect, sealed.',
+    'A preset lists what to check. A baseline is a preset plus the values you expect, sealed so any later edit shows.',
     '',
-    '1. Start from a preset: copy presets/example-tenant-hygiene.json into ~/M365BaselineCheck/presets/ and edit it. CLAUDE.md explains every field.',
-    '2. Draft a baseline: reads this tenant and writes what it finds as the expected values.',
-    '3. Review the draft, change any value you do not want to keep, then seal it. Only sealed baselines run.',
+    '1. Draft: choose a preset, and the tool reads this tenant and writes what it finds as the expected values. To try it, choose the example preset.',
+    '2. Review: open the draft, add any value it lists as missing, and change any you don''t want to keep.',
+    '3. Seal: only sealed baselines run. Sealing makes it the chosen baseline, so r runs it.',
     '',
-    'Keep your own presets and baselines in ~/M365BaselineCheck or a private repository, never in this public one.'
+    'To choose your own checks, copy the example preset first and edit the copy. Your presets and baselines stay in ~/M365BaselineCheck or a private repository, never in this public one.'
 )
 
 $script:MbcScreenKeys = @{
@@ -61,6 +62,8 @@ function New-MbcTuiState {
         Connection = $null; Baseline = $null; AllowUnsealed = $false; ExpectedFingerprint = $null; OutputRoot = $OutputRoot
         IncludeInventory = $true
         View = $null; ViewSource = ''; ViewFromFile = $false; Exported = $false
+        # The draft written this session, which sealing offers first.
+        LastDraft = $null
         # The current run's log, while a locked export can still carry it; every plaintext log this session wrote.
         RunLogPath = $null; LockedAs = $null; PlaintextLogs = [System.Collections.Generic.List[string]]::new()
         Live = $null
@@ -396,7 +399,7 @@ function Get-MbcSealNote {
     [OutputType([string])]
     param([Parameter(Mandatory)][hashtable] $State, [Parameter(Mandatory)][hashtable] $Glyphs, [bool] $Color)
     $b = $State.Baseline
-    if (-not $b) { return (Format-MbcStyle 'choose one with b' 'dim' $Color) }
+    if (-not $b) { return (Format-MbcStyle 'b chooses one' 'dim' $Color) }
     if ($b.SealState -eq 'Modified') { return (Format-MbcStyle "edited since v$($b.SealedVersion) was sealed" 'warn' $Color) }
     if ($b.SealState -ne 'Sealed') { return (Format-MbcStyle 'not sealed' 'warn' $Color) }
     $text = "sealed $($Glyphs.Seal)"
@@ -651,6 +654,9 @@ function Get-MbcScreenBody {
                 $source = if ($State.ViewFromFile) { "from $($State.ViewSource)" } else { 'this run' }
                 $lines.Add('  ' + (Format-MbcStyle 'Last results  ' 'dim' $c) + (Format-MbcCountsText -Counts $State.View.Counts -Color $c) + (Format-MbcStyle "   $($Glyphs.Dot) $source$(if (-not $State.Exported) { ', not exported yet' })" 'dim' $c))
             }
+            elseif (-not $State.Baseline) {
+                $lines.Add('  ' + (Format-MbcStyle 'No baseline chosen yet. b chooses one; the example is there to try. s makes your own.' 'dim' $c))
+            }
             elseif (-not $State.Connection) {
                 $lines.Add('  ' + (Format-MbcStyle 'Running signs you in first. Every session is read-only by construction.' 'dim' $c))
             }
@@ -696,7 +702,7 @@ function Get-MbcScreenBody {
                 $indent = $text.Length - $text.TrimStart(' ').Length
                 if ($text.Length -le $Cap.Width -or $indent -ge $Cap.Width - 10) { $lines.Add($text); continue }
                 $first = $true
-                foreach ($w in (Split-MbcWrapped -Text $text.TrimStart(' ') -Width ($Cap.Width - $indent - 2) -Ellipsis $Glyphs.Ellipsis)) {
+                foreach ($w in (Split-MbcWrapped -Text $text.TrimStart(' ') -Width ($Cap.Width - $indent - 2) -Ellipsis $Glyphs.Ellipsis -BreakLong)) {
                     $lines.Add((' ' * $(if ($first) { $indent } else { $indent + 2 })) + $w)
                     $first = $false
                 }
