@@ -3,9 +3,10 @@
 # that a parser can't follow (looking it up at run time, aliases, module prefixes, default parameter
 # values, other HTTP clients) are confined to named functions or banned outright. These checks catch
 # mistakes and make a deliberate way round them conspicuous in a diff; they aren't a proof against a
-# hostile contributor, which only review is. One known way round remains, accepted: a command name held
-# in a string variable and called with positional arguments only. Each rule is also run against
-# deliberately bad code. The root module is scanned with src/; its loader's dot-source is the one allowed.
+# hostile contributor, which only review is. A variable is called as a command only when it is provably a
+# script block or a command object, so a command name can't arrive from data. Each rule is also run
+# against deliberately bad code. The root module is scanned with src/; its loader's dot-source is the one
+# allowed.
 
 BeforeAll {
     $script:Src = Join-Path (Split-Path -Parent $PSScriptRoot) 'src'
@@ -136,6 +137,49 @@ BeforeAll {
         }
     }
 
+    # Every variable called as a command must be provably a script block or a CommandInfo, never a name:
+    # a parameter typed [scriptblock] or [CommandInfo]; or, in the same function, assigned only { } literals,
+    # other such variables, or through a [scriptblock] cast, which PowerShell refuses for a string.
+    function script:Test-ProvenCallable($Scope, [string] $Name, [int] $Depth = 0) {
+        if ($Depth -gt 5) { return $false }
+        $origins = 0
+        foreach ($p in $Scope.FindAll({ $args[0] -is [System.Management.Automation.Language.ParameterAst] }, $true)) {
+            if ($p.Name.VariablePath.UserPath -ine $Name) { continue }
+            $types = @($p.Attributes | Where-Object { $_ -is [System.Management.Automation.Language.TypeConstraintAst] } | ForEach-Object { $_.TypeName.FullName })
+            # A typed parameter keeps its type through every later assignment.
+            if (@($types | Where-Object { $_ -in 'scriptblock', 'System.Management.Automation.ScriptBlock', 'System.Management.Automation.CommandInfo', 'CommandInfo' }).Count) { return $true }
+            return $false
+        }
+        foreach ($a in $Scope.FindAll({ $args[0] -is [System.Management.Automation.Language.AssignmentStatementAst] }, $true)) {
+            $left = $a.Left
+            $cast = $null
+            if ($left -is [System.Management.Automation.Language.ConvertExpressionAst]) { $cast = $left.Type.TypeName.FullName; $left = $left.Child }
+            if ($left -isnot [System.Management.Automation.Language.VariableExpressionAst] -or $left.VariablePath.UserPath -ine $Name) { continue }
+            $origins++
+            if ($cast -in 'scriptblock', 'System.Management.Automation.ScriptBlock') { continue }
+            $right = $a.Right
+            if ($right -is [System.Management.Automation.Language.PipelineAst] -and $right.PipelineElements.Count -eq 1) { $right = $right.PipelineElements[0] }
+            $expr = if ($right -is [System.Management.Automation.Language.CommandExpressionAst]) { $right.Expression } else { $null }
+            if ($expr -is [System.Management.Automation.Language.ScriptBlockExpressionAst]) { continue }
+            if ($expr -is [System.Management.Automation.Language.VariableExpressionAst] -and (Test-ProvenCallable $Scope $expr.VariablePath.UserPath ($Depth + 1))) { continue }
+            return $false
+        }
+        return ($origins -gt 0)
+    }
+
+    function script:Find-UnprovenCallables([string] $Text) {
+        $ast = Get-Ast $Text
+        foreach ($c in (Get-Commands $ast)) {
+            $first = $c.CommandElements[0]
+            if ($c.InvocationOperator -eq 'Dot' -or $first -isnot [System.Management.Automation.Language.VariableExpressionAst]) { continue }
+            $scope = $c.Parent
+            while ($scope -and $scope -isnot [System.Management.Automation.Language.FunctionDefinitionAst]) { $scope = $scope.Parent }
+            if (-not $scope) { $scope = $ast }
+            $name = $first.VariablePath.UserPath
+            if (-not (Test-ProvenCallable $scope $name)) { "`$$name may hold a command name, not a script block: $($c.Extent.Text)" }
+        }
+    }
+
     $script:Texts = foreach ($f in $script:Files) { [pscustomobject]@{ Name = $f.Name; Text = [System.IO.File]::ReadAllText($f.FullName) } }
     $script:Ok = "function Invoke-MbcGraphTransport { param(`$Uri) Invoke-MgGraphRequest -Method GET -Uri `$Uri }"
 }
@@ -171,6 +215,10 @@ Describe 'Read-only by construction (invariant 1)' {
                 }
             })
         $calls | Should -Be @('Cmdlet.ps1: & $Command @Parameters -ErrorAction Stop 3>$null')
+    }
+
+    It 'calls a variable only when it is provably a script block or a command object, never a name' {
+        @(foreach ($t in $script:Texts) { Find-UnprovenCallables $t.Text | ForEach-Object { "$($t.Name): $_" } }) | Should -BeNullOrEmpty
     }
 
     It 'keeps the commands that reach other commands inside their named functions' {
@@ -245,6 +293,25 @@ Describe 'The read-only checks catch what they claim' {
                 'function Other { sal mbcx x }'
             )) { Find-Unconfined $code | Should -Not -BeNullOrEmpty -Because $code }
         Find-Unconfined 'function Resolve-MbcSessionCommand { Get-Command -Name $Name -Module $Module -CommandType Function, Cmdlet }' | Should -BeNullOrEmpty
+    }
+    It 'catches a variable called as a command when it could hold a name, and accepts proven script blocks' {
+        foreach ($code in @(
+                'function Format-MbcD1 { param($Item) $formatter = $Item.Formatter; & $formatter $Item.Style $Item.Target }',
+                'function F { param([string] $Handler) & $Handler x }',
+                'function F { param($Handler) & $Handler x }',
+                'function F { $n = "Invoke-MgGraph" + "Request"; & $n DELETE $u }',
+                'function F { $r = { 1 }; $r = $State.Hook; & $r }',
+                'function F { & $undefined }',
+                'function F { $a = $b; & $a }'
+            )) { Find-UnprovenCallables $code | Should -Not -BeNullOrEmpty -Because $code }
+        foreach ($code in @(
+                'function F { param([scriptblock] $OnTick) & $OnTick }',
+                'function F { param([System.Management.Automation.CommandInfo] $Command) & $Command @p }',
+                'function F { $say = { param($t) $t }; & $say hi }',
+                'function F { param([scriptblock] $OnResult) $streamTo = $OnResult; & $streamTo 1 }',
+                'function F { [scriptblock]$seam = $State.Seams.Fetch; & $seam 1 }',
+                'function F { $add = { 1 }; $add = { 2 }; & $add }'
+            )) { Find-UnprovenCallables $code | Should -BeNullOrEmpty -Because $code }
     }
     It 'names the text routes it bans' {
         foreach ($code in @(
