@@ -35,7 +35,16 @@ documented Microsoft ID.
 8. **Data stays close to its source.** Graph JSON as returned; cmdlet output flattened once, to one level.
 9. **Plain string handling.** No regular expressions in `src/` except the `matches` operator.
 
-`tests/Hygiene.Tests.ps1` and `tests/ReadOnly.Tests.ps1` hold 1, 7 and 9.
+`tests/Hygiene.Tests.ps1` and `tests/ReadOnly.Tests.ps1` hold 1, 7 and 9. `ReadOnly.Tests.ps1` parses the
+code, and what it requires shapes ordinary code too:
+- A variable called as a command (`& $x`) must be provably a script block or `CommandInfo`: a parameter
+  typed `[scriptblock]`, a variable assigned only `{ }` literals in the same function, or a
+  `[scriptblock]` cast (`[scriptblock]$h = $map[$k]`). A loop variable or a lookup needs the cast.
+- `Get-Command`, `Import-Module`, the cmdlet runner and its resolver are called only from their named
+  functions. Aliases, variables written by name and `Set-Variable` and its relatives are not used.
+
+These checks catch mistakes and make a deliberate way round them stand out in a diff. Review is what
+stops a hostile change.
 
 ## Nouns
 

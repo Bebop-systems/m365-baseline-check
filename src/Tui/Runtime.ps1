@@ -241,7 +241,7 @@ function Invoke-MbcTuiRun {
 
     $redraw = { $State.Tick++; Update-MbcTuiView -State $State }
     $onWait = { param($Seconds) $live.Waiting = $Seconds; & $redraw }
-    $seamFetch = $State.Seams.Fetch
+    [scriptblock]$seamFetch = $State.Seams.Fetch
     $fetch = if ($seamFetch) { { param($Item) & $seamFetch $Item $redraw $onWait } }
     else { { param($Item) Invoke-MbcSourceFetch -Item $Item -Preset $preset -Connection $connection -Log $log -OnTick $redraw -OnWait $onWait } }
     $onProgress = {
@@ -372,7 +372,7 @@ function Invoke-MbcTuiDraft {
     }
     if ($State.Seams.Connection -and -not $State.Connection) { $State.Connection = $State.Seams.Connection }
     $connection = $State.Connection
-    $seamFetch = $State.Seams.Fetch
+    [scriptblock]$seamFetch = $State.Seams.Fetch
     $draftFetch = if ($seamFetch) { { param($Item) & $seamFetch $Item $null $null } } else { { param($Item) Invoke-MbcSourceFetch -Item $Item -Preset $preset -Connection $connection } }
     $State.Screen = 'build'
     Set-MbcTuiMessage -State $State -Text "Reading this tenant for $([System.IO.Path]::GetFileName($PresetPath))."
