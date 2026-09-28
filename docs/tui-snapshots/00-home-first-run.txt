@@ -1,7 +1,7 @@
 ╭─ M365 Baseline Check ─────────────────────────────────────────────────────────────────── v0.1.0 ─╮
 │ Tenant    ○ not signed in                                                       r signs in, or c │
 │ Sessions  none                                                                                   │
-│ Baseline  Example tenant hygiene · v2 · dc1e31c4226c                                    sealed ✓ │
+│ Baseline  none chosen                                                              b chooses one │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
   ▸ Run checks                                                                                   r
@@ -15,7 +15,7 @@
     Read the app inventory with each run: on                                                     t
     Quit                                                                                         q
 
-  Running signs you in first. Every session is read-only by construction.
+  No baseline chosen yet. b chooses one; the example is there to try. s makes your own.
 
 
 
@@ -28,5 +28,5 @@
 
 
 
-  Chose Example tenant hygiene v2, fingerprint dc1e31c4226c. Sealed and unchanged.
+
   ↑↓ move   Enter select   r run   b baseline   ? help   q quit

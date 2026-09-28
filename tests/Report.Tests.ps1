@@ -24,6 +24,8 @@ InModuleScope M365BaselineCheck {
             Format-MbcPad -Text 'ab' -Width 4 | Should -BeExactly 'ab  '
             Format-MbcPad -Text 'ab' -Width 4 -Right | Should -BeExactly '  ab'
             (Split-MbcWrapped -Text 'one two three four' -Width 9) -join '|' | Should -Be 'one two|three|four'
+            (Split-MbcWrapped -Text 'at /a/very/long/path.json now' -Width 8) -join '|' | Should -Be 'at|/a/very…|now'
+            (Split-MbcWrapped -Text 'at /a/very/long/path.json now' -Width 8 -BreakLong) -join '|' | Should -Be 'at|/a/very/|long/pat|h.json|now'
         }
         It 'turns Unicode punctuation into ASCII in ASCII mode, and leaves nothing above 127' {
             ConvertTo-MbcGlyphText 'Identity › Users → x … ↑↓ ✓' $script:A | Should -BeExactly 'Identity > Users -> x ... Up/Dn ?'

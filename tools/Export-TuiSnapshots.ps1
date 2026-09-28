@@ -35,7 +35,8 @@ try {
         }
         $rows = { param($s) Get-MbcTuiRows -State $s }
         $scenes = [ordered]@{
-            '01-home-signed-out'   = { param($s) $s.Connection = $null; $s.View = $null; $s.Message = 'Chose Example tenant hygiene v1, fingerprint 166cee0ba798. Sealed and unchanged.'; $s.MessageStyle = 'ok' }
+            '00-home-first-run'    = { param($s) $s.Connection = $null; $s.View = $null; $s.Baseline = $null }
+            '01-home-signed-out'   = { param($s) $s.Connection = $null; $s.View = $null; $s.Message = ('Chose {0} v{1}, fingerprint {2}. Sealed and unchanged.' -f $baseline.Name, $baseline.Version, $baseline.Fingerprint); $s.MessageStyle = 'ok' }
             '02-home'              = { param($s) $s.MenuIndex = 0 }
             '03-run'               = { param($s)
                 $s.Screen = 'run'; $s.Tick = 3
@@ -54,9 +55,15 @@ try {
             '11-apps'              = { param($s) Open-MbcTuiResults -State $s; $s.Screen = 'apps'; $s.AppIndex = 1 }
             '12-app-detail'        = { param($s) Open-MbcTuiResults -State $s; $s.Screen = 'appDetail'; $s.AppDetail = $view.Inventory.ThirdParty | Where-Object DisplayName -eq 'Handy PDF Signer' }
             '13-help-results'      = { param($s) Open-MbcTuiResults -State $s; $s.Help = $true }
-            '14-choose-baseline'   = { param($s) $s.Screen = 'chooser'; $s.ChooserTitle = 'Choose a baseline'; $s.Files = @('~/M365BaselineCheck/baselines/core-tenant.json', '~/M365BaselineCheck/baselines/core-tenant-v4-draft.json', 'presets/example-tenant-hygiene.baseline.json') }
+            # A home-relative output folder, so the rows show where each file lives without a real path in the snapshot.
+            '14-choose-baseline'   = { param($s) $s.Screen = 'chooser'; $s.ChooserTitle = 'Choose a baseline'; $s.ChooserPurpose = 'baseline'; $s.OutputRoot = '~/M365BaselineCheck'; $s.Files = @('~/M365BaselineCheck/baselines/core-tenant.json', '~/M365BaselineCheck/baselines/core-tenant-v4-draft.json', 'presets/example-tenant-hygiene.baseline.json') }
             '15-export-prompt'     = { param($s) $s.Screen = 'prompt'; $s.Prompt = @{ Title = 'Export'; Label = 'Team key, to lock the export. Leave it empty to write plaintext instead.'; Mask = $true; Value = 'mbc-key:1:3f2a9c1e:abcdefgh' } }
             '16-build'             = { param($s) $s.Screen = 'build' }
+            '20-draft-written'     = { param($s)
+                $s.Screen = 'panel'; $s.PanelReturn = 'build'
+                $notes = @("INTUNE-001: couldn't be read (setting not found); fill it in by hand", "EXO-003: couldn't be read (cmdlet failed); fill it in by hand")
+                $s.Panel = @{ Title = 'Draft written'; Lines = (Get-MbcDraftPanelLines -Path '~/M365BaselineCheck/baselines/core-tenant.baseline.json' -Count 17 -Notes $notes) }
+            }
             '19-sign-in-details'   = { param($s) [void](Invoke-MbcTuiNavigation -State $s -Action 'signInDetails' -Cap (New-MbcCapability -Width 100 -Height 32)) }
         }
         $cap = New-MbcCapability -Width $Width -Height $Height -Unicode $true

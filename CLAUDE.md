@@ -148,8 +148,11 @@ Results are read by people who live in the admin centres, so they must look fami
 
 ## Capture, edit, seal
 
+The view does the same from its *Make a baseline* screen (`s`), and README walks an operator through it.
+
 1. `New-BaselineCapture -PresetPath <preset> -OutputPath <draft> -Name '<name>'` signs in, reads a
-   reference tenant and writes an unsealed draft. It lists what it couldn't read or decide.
+   reference tenant and writes an unsealed draft. A check it couldn't read or decide is left out of
+   `expected` and listed; sealing refuses until each has a value.
 2. Edit the draft's `expected` values by hand where needed.
 3. `Protect-Baseline <draft>` validates and seals, and prints the line to record in the team's catalogue:
    `Name · vN · SHA-256 <digest>`. Changed content can't be resealed under the same version.
@@ -195,10 +198,16 @@ To raise a range, do a live run on the new version (sign-in, a full run, sign-ou
 `Minimum`, `Tested`, `PowerShell` or `Files` there, and the install lines in README. A version newer
 than `Tested` inside the range runs, and the disclosure says it is untested.
 
-First live run: Graph signed in through the Windows broker (WAM), but Exchange Online's broker sign-in
-failed with `NullReferenceException` in MSAL's `RuntimeBroker..ctor` (no parent window). Exchange Online
-and Security & Compliance therefore connect with `-DisableWAM`, a browser sign-in. Whether that works
-end to end still wants a second live run; record the result here.
+What the live runs settled (Windows, pwsh 7.6, the versions above):
+- Graph signs in through the Windows broker (WAM). Exchange Online's broker sign-in failed with
+  `NullReferenceException` in MSAL's `RuntimeBroker..ctor` (no parent window), so Exchange Online and
+  Security & Compliance connect with `-DisableWAM`, a browser sign-in. That works end to end.
+- Exchange Online's cmdlets pass their bound parameters on to the service, and `Get-OrganizationConfig`
+  fails server-side when given `-WarningAction`. The runner discards warnings with `3>$null` instead.
+- Graph's `-SignOutFromBroker` always fails once ExchangeOnlineManagement is loaded (the two ship clashing
+  MSAL builds), so it is skipped then, and the operator is told where Windows remembers the account.
+- Intune's `settings` read as null until they are saved once in the portal: *setting not found*, which
+  is correct.
 
 ## Session hygiene
 
@@ -234,9 +243,9 @@ synced-folder rule; teams keep them in a private repository.
 - `pwsh -NoProfile -File tools/Start-Demo.ps1` runs the TUI against a synthetic tenant, nothing online.
 - `pwsh -NoProfile -File tools/Export-TuiSnapshots.ps1` renders every screen to `docs/tui-snapshots/`.
 - Files are UTF-8 without a BOM, with LF line endings.
-- Releases: raise `ModuleVersion`, merge, then push the tag `v<ModuleVersion>`. The release workflow
-  runs the gate again, builds with `tools/Build-Release.ps1`, signs if the secrets exist, attests and
-  publishes. Workflow actions are pinned to commit SHAs; update them deliberately.
+- Releases, signing and testing on a Mac: [docs/development.md](docs/development.md).
+- Wording in the view: regenerate the snapshots and read their diff; README describes the same flows,
+  so change both together.
 
 ## PowerShell traps met here
 

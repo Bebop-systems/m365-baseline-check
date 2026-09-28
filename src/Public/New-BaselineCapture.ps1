@@ -22,7 +22,11 @@ function New-BaselineCapture {
     # Messages show unless the caller chose otherwise.
     if (-not $PSBoundParameters.ContainsKey('InformationAction')) { $InformationPreference = 'Continue' }
     $preset = Read-MbcPreset -Path $PresetPath
+    # Before signing in: a draft that can't be written would waste the whole read.
+    $OutputPath = Resolve-MbcFullPath -Path $OutputPath
     if ((Test-Path -LiteralPath $OutputPath) -and -not $Force) { throw "'$OutputPath' already exists. Use -Force to replace it." }
+    $folder = Split-Path -Parent $OutputPath
+    if (-not (Test-Path -LiteralPath $folder -PathType Container)) { throw "There's no folder '$folder' to write the draft into." }
     if (-not $Name) { $Name = [string]$preset['name'] }
     $connection = $null
     if (-not $Fetch) {

@@ -1,10 +1,25 @@
+function Resolve-MbcFullPath {
+    # A path as PowerShell means it: ~ is home, and a relative path is relative to the current location,
+    # not the process's working folder. .NET's GetFullPath knows neither. Only a file-system path is
+    # accepted: another provider's path (Env:\x, say) would come back as text that .NET then reads as
+    # relative to the working folder, so what was checked and what was written would differ.
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([Parameter(Mandatory)][string] $Path)
+    $provider = $null
+    $drive = $null
+    $full = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path, [ref]$provider, [ref]$drive)
+    if ($provider.Name -ne 'FileSystem') { throw "'$Path' isn't a file-system path (it's on the $($provider.Name) drive). Give a folder or file path." }
+    return $full
+}
+
 function Resolve-MbcOutputBase {
     # The full path of the folder the tool would write under, without creating anything.
     [CmdletBinding()]
     [OutputType([string])]
     param([string] $Root)
     $base = if ($Root) { $Root } elseif ($env:M365BC_HOME) { $env:M365BC_HOME } else { Join-Path $HOME 'M365BaselineCheck' }
-    return $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($base)
+    return (Resolve-MbcFullPath -Path $base)
 }
 
 function Get-MbcOutputRoot {
@@ -56,7 +71,7 @@ function Write-MbcFileAtomic {
     #>
     [CmdletBinding()]
     param([Parameter(Mandatory)][string] $Path, [Parameter(Mandatory)][AllowEmptyString()][string] $Text)
-    $full = [System.IO.Path]::GetFullPath($Path)
+    $full = Resolve-MbcFullPath -Path $Path
     $temp = '{0}.{1}.tmp' -f $full, [guid]::NewGuid().ToString('N').Substring(0, 8)
     try {
         # Private from the moment it exists (600 on macOS and Linux), and the move keeps the mode.

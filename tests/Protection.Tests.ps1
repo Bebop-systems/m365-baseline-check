@@ -57,6 +57,29 @@ InModuleScope M365BaselineCheck {
         }
     }
 
+    Describe 'Paths as PowerShell means them' {
+        It 'reads ~ as home and a relative path from the current location' {
+            Resolve-MbcFullPath -Path '~/M365BaselineCheck/x.json' | Should -Be ([System.IO.Path]::GetFullPath((Join-Path $HOME 'M365BaselineCheck/x.json')))
+            Push-Location $TestDrive
+            try { Resolve-MbcFullPath -Path 'sub/x.json' | Should -Be ([System.IO.Path]::GetFullPath((Join-Path $TestDrive 'sub/x.json'))) }
+            finally { Pop-Location }
+        }
+        It 'refuses a path on a drive that isn''t the file system, before writing anything' {
+            { Resolve-MbcFullPath -Path 'Env:\mbc-probe.json' } | Should -Throw "*isn't a file-system path*Environment*"
+            { Write-MbcFileAtomic -Path 'Env:\mbc-probe.json' -Text 'x' } | Should -Throw "*isn't a file-system path*"
+            Push-Location 'Env:\'
+            try { { Resolve-MbcFullPath -Path 'relative.json' } | Should -Throw "*isn't a file-system path*" }
+            finally { Pop-Location }
+            Test-Path (Join-Path (Get-Location).ProviderPath 'mbc-probe.json') | Should -BeFalse
+        }
+        It 'writes a relative path under the current location, never a literal folder' {
+            Push-Location $TestDrive
+            try { Write-MbcFileAtomic -Path 'written.txt' -Text 'x' }
+            finally { Pop-Location }
+            Test-Path (Join-Path $TestDrive 'written.txt') | Should -BeTrue
+        }
+    }
+
     Describe 'Old plaintext' {
         It 'points out plaintext logs and results older than 30 days, and never deletes them' {
             $root = Get-MbcOutputRoot -Root (Join-Path $TestDrive 'stale')
