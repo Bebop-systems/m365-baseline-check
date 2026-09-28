@@ -3,11 +3,17 @@
 # that a parser can't follow (looking it up at run time, aliases, module prefixes, default parameter
 # values, other HTTP clients) are confined to named functions or banned outright. These checks catch
 # mistakes and make a deliberate way round them conspicuous in a diff; they aren't a proof against a
-# hostile contributor, which only review is. Each rule is also run against deliberately bad code.
+# hostile contributor, which only review is. One known way round remains, accepted: a command name held
+# in a string variable and called with positional arguments only. Each rule is also run against
+# deliberately bad code. The root module is scanned with src/; its loader's dot-source is the one allowed.
 
 BeforeAll {
     $script:Src = Join-Path (Split-Path -Parent $PSScriptRoot) 'src'
-    $script:Files = @(Get-ChildItem -LiteralPath $script:Src -Recurse -Filter '*.ps1' -File)
+    $script:Files = @(Get-ChildItem -LiteralPath $script:Src -Recurse -Filter '*.ps1' -File) + @(Get-Item -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot) 'M365BaselineCheck.psm1'))
+    $script:LoaderDotSource = 'M365BaselineCheck.psm1: dot-sourcing: . $file.FullName'
+    # PowerShell's built-in aliases, so gcm is seen as Get-Command and sal as Set-Alias.
+    $script:AliasOf = @{}
+    foreach ($a in (Get-Alias -ErrorAction SilentlyContinue)) { $script:AliasOf[$a.Name] = [string]$a.Definition }
     # Invoke-MgGraphRequest and every alias Microsoft.Graph.Authentication exports for it.
     $script:GraphCommands = @('Invoke-MgGraphRequest', 'Invoke-GraphRequest', 'Invoke-MgRestMethod')
     $script:WriteMethods = @('POST', 'PUT', 'PATCH', 'DELETE', 'MERGE')
@@ -22,7 +28,11 @@ BeforeAll {
         'New-Alias'                 = @()
     }
     # Text that means reaching a command, or the network, by a route the parser can't follow.
-    $script:Indirection = @('InvokeCommand', 'GetScriptBlock', 'Parser]::Parse', 'PSDefaultParameterValues', 'Net.Http', 'SocketsHttpHandler', 'HttpMessage', 'TcpClient', 'Net.Sockets')
+    $script:Indirection = @(
+        'InvokeCommand', 'GetScriptBlock', 'Parser]::Parse', 'PSDefaultParameterValues', 'Get-Variable',
+        'Alias:', 'Function:', 'ExportedCmdlets', 'ExportedCommands', 'ExportedFunctions', 'CmdletInfo', 'GraphRequestMethod',
+        'Net.Http', 'SocketsHttpHandler', 'HttpMessage', 'TcpClient', 'Net.Sockets'
+    )
 
     function script:Get-Ast([string] $Text) { [System.Management.Automation.Language.Parser]::ParseInput($Text, [ref]$null, [ref]$null) }
     function script:Get-Commands($Ast) { @($Ast.FindAll({ $args[0] -is [System.Management.Automation.Language.CommandAst] }, $true)) }
@@ -88,6 +98,13 @@ BeforeAll {
                 foreach ($e in @($c.CommandElements | Select-Object -Skip 1)) {
                     if ($e -is [System.Management.Automation.Language.StringConstantExpressionAst] -and $e.Value -in $script:WriteMethods) { "write verb given to a command in a variable: $($c.Extent.Text)" }
                 }
+                # Any -Method at all: its value can be computed, or a number (DELETE is 4 in Graph's enum).
+                if (@(Get-MethodArguments $c).Count) { "-Method given to a command in a variable: $($c.Extent.Text)" }
+                # The runner's own parameters: a variable holding its name would reach it from anywhere.
+                foreach ($e in @($c.CommandElements | Where-Object { $_ -is [System.Management.Automation.Language.CommandParameterAst] })) {
+                    $p = $e.ParameterName.ToLowerInvariant()
+                    if ($p.Length -ge 3 -and ('command'.StartsWith($p) -or 'parameters'.StartsWith($p))) { "runner parameter given to a command in a variable: $($c.Extent.Text)" }
+                }
             }
         }
         foreach ($m in $ast.FindAll({ $args[0] -is [System.Management.Automation.Language.InvokeMemberExpressionAst] }, $true)) {
@@ -101,6 +118,9 @@ BeforeAll {
         foreach ($c in (Get-Commands (Get-Ast $Text))) {
             $name = $c.GetCommandName()
             if (-not $name) { continue }
+            # Microsoft.PowerShell.Core\Get-Command is Get-Command; so is gcm.
+            $name = $name.Substring($name.LastIndexOf('\') + 1)
+            if ($script:AliasOf.ContainsKey($name)) { $name = $script:AliasOf[$name] }
             $key = @($script:Confined.Keys | Where-Object { $_ -ieq $name })
             if ($key.Count -eq 0) { continue }
             $in = Get-EnclosingFunction $c
@@ -139,8 +159,8 @@ Describe 'Read-only by construction (invariant 1)' {
         @(foreach ($t in $script:Texts) { Find-WriteMethods $t.Text }) | Should -BeNullOrEmpty
     }
 
-    It 'never calls a command by a computed name, or through .Invoke()' {
-        @(foreach ($t in $script:Texts) { Find-ComputedCalls $t.Text | ForEach-Object { "$($t.Name): $_" } }) | Should -BeNullOrEmpty
+    It 'never calls a command by a computed name, or through .Invoke(); dot-sources only in the loader' {
+        @(foreach ($t in $script:Texts) { Find-ComputedCalls $t.Text | ForEach-Object { "$($t.Name): $_" } }) | Should -Be @($script:LoaderDotSource)
     }
 
     It 'runs a command held in a variable with splatted arguments in exactly one place: the guarded runner' {
@@ -203,7 +223,7 @@ Describe 'The read-only checks catch what they claim' {
     }
     It 'catches a call by computed name, dot-sourcing, .Invoke(), and a write verb given to a command in a variable' {
         foreach ($code in "& ('Invoke-' + 'MgGraphRequest') -Method POST", '& "Invoke-$x" -Method POST', '. (Get-Command Invoke-MgGraphRequest)', '. $path', '$c.Invoke()',
-            '$ExecutionContext.InvokeCommand.InvokeScript("x")', '& $c DELETE $u', '& $c -Uri $u PATCH') {
+            '$ExecutionContext.InvokeCommand.InvokeScript("x")', '& $c DELETE $u', '& $c -Uri $u PATCH', '& $n -Method $v -Uri $u', '& $n -Method 4 -Uri $u', '& $n -Meth:$m', '& $r -Command $c -Parameters @{ Method = ''DELETE'' }', '& $r -Comm $c') {
             Find-ComputedCalls $code | Should -Not -BeNullOrEmpty -Because $code
         }
         Find-ComputedCalls '& { param($x) $x } 1; & $say ''done''' | Should -BeNullOrEmpty -Because 'a script block or a variable called with ordinary arguments is fine'
@@ -218,7 +238,11 @@ Describe 'The read-only checks catch what they claim' {
                 'function Import-MbcSourceModule { Import-Module Microsoft.Graph.Authentication -Prefix Zz }',
                 'function Other { Import-Module x }',
                 'function Other { Set-Alias mbcx ("Invoke-MgGraph" + "Request") }',
-                'function Other { New-Alias mbcx x }'
+                'function Other { New-Alias mbcx x }',
+                'function Other { gcm -Verb Invoke -Noun MgGraphRequest }',
+                'function Other { Microsoft.PowerShell.Core\Get-Command Get-Thing }',
+                'function Import-MbcSourceModule { ipmo Microsoft.Graph.Authentication -Prefix Zz }',
+                'function Other { sal mbcx x }'
             )) { Find-Unconfined $code | Should -Not -BeNullOrEmpty -Because $code }
         Find-Unconfined 'function Resolve-MbcSessionCommand { Get-Command -Name $Name -Module $Module -CommandType Function, Cmdlet }' | Should -BeNullOrEmpty
     }
@@ -227,7 +251,12 @@ Describe 'The read-only checks catch what they claim' {
                 '$ExecutionContext.InvokeCommand.GetCommand("x", "Cmdlet")',
                 '[System.Management.Automation.Language.Parser]::ParseInput($t, [ref]$null, [ref]$null).GetScriptBlock()',
                 '$PSDefaultParameterValues["Invoke-MgG*:Method"] = "DELETE"',
-                '[System.Net.Http.HttpMessageInvoker]::new([System.Net.Http.SocketsHttpHandler]::new())'
+                '[System.Net.Http.HttpMessageInvoker]::new([System.Net.Http.SocketsHttpHandler]::new())',
+                'Set-Item Alias:mbcx -Value x',
+                '(Get-Module Microsoft.Graph.Authentication).ExportedCmdlets["Invoke-MgGraphRequest"]',
+                '[System.Management.Automation.CmdletInfo]::new("Get-Thing", [object])',
+                'Get-Variable PSDefault* -ValueOnly',
+                '-Method ([Microsoft.Graph.PowerShell.Authentication.Models.GraphRequestMethod]::DELETE)'
             )) { @($script:Indirection | Where-Object { $code.IndexOf($_, [StringComparison]::OrdinalIgnoreCase) -ge 0 }).Count | Should -BeGreaterThan 0 -Because $code }
     }
 }
