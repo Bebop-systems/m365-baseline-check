@@ -27,6 +27,10 @@ BeforeAll {
         'Import-Module'             = @('Import-MbcSourceModule')
         'Set-Alias'                 = @()
         'New-Alias'                 = @()
+        # Writes to a variable by name, which the callable proof below can't see.
+        'Set-Variable'              = @()
+        'New-Variable'              = @()
+        'Tee-Object'                = @()
     }
     # Text that means reaching a command, or the network, by a route the parser can't follow.
     $script:Indirection = @(
@@ -137,46 +141,98 @@ BeforeAll {
         }
     }
 
-    # Every variable called as a command must be provably a script block or a CommandInfo, never a name:
-    # a parameter typed [scriptblock] or [CommandInfo]; or, in the same function, assigned only { } literals,
-    # other such variables, or through a [scriptblock] cast, which PowerShell refuses for a string.
-    function script:Test-ProvenCallable($Scope, [string] $Name, [int] $Depth = 0) {
+    # Every variable called as a command must be provably a script block or a CommandInfo, never a name.
+    # PowerShell's scoping decides what "provably" takes:
+    # - a parameter counts only in the call's own function or an enclosing script block, and must be
+    #   typed [scriptblock] or [CommandInfo]; an untyped one there fails;
+    # - every assignment to the name anywhere in the function is checked, since a child scope makes a new,
+    #   untyped variable and a script block can run in the caller's scope. It must be a { } literal, a
+    #   [scriptblock] cast (PowerShell refuses a string), another proven variable, or sit in the same
+    #   scope as a typed parameter of that name, which converts it;
+    # - any other write fails: [ref], multiple assignment, a foreach variable, -OutVariable and the like.
+    $script:TypedCallable = @('scriptblock', 'System.Management.Automation.ScriptBlock', 'CommandInfo', 'System.Management.Automation.CommandInfo')
+
+    function script:Get-NearestScriptBlock($Node) {
+        $n = $Node.Parent
+        while ($n -and $n -isnot [System.Management.Automation.Language.ScriptBlockAst]) { $n = $n.Parent }
+        $n
+    }
+
+    function script:Test-ProvenCallable($Site, [string] $Name, [int] $Depth = 0) {
         if ($Depth -gt 5) { return $false }
-        $origins = 0
-        foreach ($p in $Scope.FindAll({ $args[0] -is [System.Management.Automation.Language.ParameterAst] }, $true)) {
-            if ($p.Name.VariablePath.UserPath -ine $Name) { continue }
-            $types = @($p.Attributes | Where-Object { $_ -is [System.Management.Automation.Language.TypeConstraintAst] } | ForEach-Object { $_.TypeName.FullName })
-            # A typed parameter keeps its type through every later assignment.
-            if (@($types | Where-Object { $_ -in 'scriptblock', 'System.Management.Automation.ScriptBlock', 'System.Management.Automation.CommandInfo', 'CommandInfo' }).Count) { return $true }
-            return $false
+        $root = $Site.Parent
+        while ($root -and $root -isnot [System.Management.Automation.Language.FunctionDefinitionAst]) { $root = $root.Parent }
+        if (-not $root) { $root = $Site; while ($root.Parent) { $root = $root.Parent } }
+        $isName = { param($v) $v -is [System.Management.Automation.Language.VariableExpressionAst] -and $v.VariablePath.UserPath -ieq $Name }
+
+        # Parameters of the call's own function and enclosing script blocks; that chain is also where an
+        # assignment has to be for the variable to exist at the call. One made only in a child or sibling
+        # block leaves the call reading whatever its caller had (dynamic scope).
+        $typedScopes = [System.Collections.Generic.List[object]]::new()
+        $chain = [System.Collections.Generic.List[object]]::new()
+        $sb = Get-NearestScriptBlock $Site
+        while ($sb) {
+            $chain.Add($sb)
+            $params = @()
+            if ($sb.ParamBlock) { $params += @($sb.ParamBlock.Parameters) }
+            if ($sb.Parent -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $sb.Parent.Parameters) { $params += @($sb.Parent.Parameters) }
+            foreach ($p in $params) {
+                if (-not (& $isName $p.Name)) { continue }
+                $types = @($p.Attributes | Where-Object { $_ -is [System.Management.Automation.Language.TypeConstraintAst] } | ForEach-Object { $_.TypeName.FullName })
+                if (@($types | Where-Object { $_ -in $script:TypedCallable }).Count -eq 0) { return $false }
+                $typedScopes.Add($sb)
+            }
+            if ($sb.Parent -is [System.Management.Automation.Language.FunctionDefinitionAst]) { break }
+            $sb = Get-NearestScriptBlock $sb
         }
-        foreach ($a in $Scope.FindAll({ $args[0] -is [System.Management.Automation.Language.AssignmentStatementAst] }, $true)) {
+
+        $writes = 0
+        foreach ($a in $root.FindAll({ $args[0] -is [System.Management.Automation.Language.AssignmentStatementAst] }, $true)) {
             $left = $a.Left
+            if ($left -is [System.Management.Automation.Language.ArrayLiteralAst]) {
+                if (@($left.Elements | Where-Object { (& $isName $_) -or ($_ -is [System.Management.Automation.Language.ConvertExpressionAst] -and (& $isName $_.Child)) }).Count) { return $false }
+                continue
+            }
             $cast = $null
             if ($left -is [System.Management.Automation.Language.ConvertExpressionAst]) { $cast = $left.Type.TypeName.FullName; $left = $left.Child }
-            if ($left -isnot [System.Management.Automation.Language.VariableExpressionAst] -or $left.VariablePath.UserPath -ine $Name) { continue }
-            $origins++
-            if ($cast -in 'scriptblock', 'System.Management.Automation.ScriptBlock') { continue }
+            if (-not (& $isName $left)) { continue }
+            if ($chain.Contains((Get-NearestScriptBlock $a))) { $writes++ }
+            if ($cast -in $script:TypedCallable) { continue }
+            if ($typedScopes.Contains((Get-NearestScriptBlock $a))) { continue }
             $right = $a.Right
             if ($right -is [System.Management.Automation.Language.PipelineAst] -and $right.PipelineElements.Count -eq 1) { $right = $right.PipelineElements[0] }
             $expr = if ($right -is [System.Management.Automation.Language.CommandExpressionAst]) { $right.Expression } else { $null }
             if ($expr -is [System.Management.Automation.Language.ScriptBlockExpressionAst]) { continue }
-            if ($expr -is [System.Management.Automation.Language.VariableExpressionAst] -and (Test-ProvenCallable $Scope $expr.VariablePath.UserPath ($Depth + 1))) { continue }
+            if ($expr -is [System.Management.Automation.Language.VariableExpressionAst] -and (Test-ProvenCallable $a $expr.VariablePath.UserPath ($Depth + 1))) { continue }
             return $false
         }
-        return ($origins -gt 0)
+        # [ref]$name, a foreach loop variable, and -OutVariable name (or any -*Variable) are writes too.
+        foreach ($r in $root.FindAll({ $args[0] -is [System.Management.Automation.Language.ConvertExpressionAst] -and $args[0].Type.TypeName.Name -ieq 'ref' }, $true)) {
+            if (& $isName $r.Child) { return $false }
+        }
+        foreach ($f in $root.FindAll({ $args[0] -is [System.Management.Automation.Language.ForEachStatementAst] }, $true)) {
+            if (& $isName $f.Variable) { return $false }
+        }
+        foreach ($c in $root.FindAll({ $args[0] -is [System.Management.Automation.Language.CommandAst] }, $true)) {
+            $elements = $c.CommandElements
+            for ($i = 1; $i -lt $elements.Count; $i++) {
+                $e = $elements[$i]
+                if ($e -isnot [System.Management.Automation.Language.CommandParameterAst]) { continue }
+                $pn = $e.ParameterName.ToLowerInvariant()
+                if (-not ($pn.EndsWith('variable') -or $pn -in 'ov', 'pv', 'ev', 'wv', 'iv')) { continue }
+                $arg = if ($e.Argument) { $e.Argument } elseif ($i + 1 -lt $elements.Count) { $elements[$i + 1] } else { $null }
+                if ($arg -is [System.Management.Automation.Language.StringConstantExpressionAst] -and $arg.Value.TrimStart('+') -ieq $Name) { return $false }
+            }
+        }
+        return ($typedScopes.Count -gt 0 -or $writes -gt 0)
     }
 
     function script:Find-UnprovenCallables([string] $Text) {
-        $ast = Get-Ast $Text
-        foreach ($c in (Get-Commands $ast)) {
+        foreach ($c in (Get-Commands (Get-Ast $Text))) {
             $first = $c.CommandElements[0]
             if ($c.InvocationOperator -eq 'Dot' -or $first -isnot [System.Management.Automation.Language.VariableExpressionAst]) { continue }
-            $scope = $c.Parent
-            while ($scope -and $scope -isnot [System.Management.Automation.Language.FunctionDefinitionAst]) { $scope = $scope.Parent }
-            if (-not $scope) { $scope = $ast }
             $name = $first.VariablePath.UserPath
-            if (-not (Test-ProvenCallable $scope $name)) { "`$$name may hold a command name, not a script block: $($c.Extent.Text)" }
+            if (-not (Test-ProvenCallable $c $name)) { "`$$name may hold a command name, not a script block: $($c.Extent.Text)" }
         }
     }
 
@@ -302,15 +358,33 @@ Describe 'The read-only checks catch what they claim' {
                 'function F { $n = "Invoke-MgGraph" + "Request"; & $n DELETE $u }',
                 'function F { $r = { 1 }; $r = $State.Hook; & $r }',
                 'function F { & $undefined }',
-                'function F { $a = $b; & $a }'
+                'function F { $a = $b; & $a }',
+                'function F { param($Item) $handler = { }; [void]$Handlers.TryGetValue($Item.Kind, [ref]$handler); & $handler $Item.Style $Item.Target }',
+                'function F { param([scriptblock] $OnTick, $Item) $each = { param($row) $OnTick = $row.Hook; & $OnTick $row.Style $row.Target }; & $each $Item }',
+                'function F { param($Item) $g = { param([scriptblock] $fmt) & $fmt }; $fmt = $Item.Formatter; & $fmt $Item.Style }',
+                'function F { param($Item) $fmt, $v = $Item.Formatter, 1; & $fmt $v }',
+                'function F { param($Item) $reset = { $fmt = $Item.F }; $fmt = { }; & $reset; & $fmt }',
+                'function F { foreach ($s in $Item.Steps) { & $s } }',
+                'function F { $h = { }; Get-Thing -OutVariable h; & $h }',
+                'function F { $h = { }; Get-Thing -ov +h; & $h }',
+                'function Format-MbcE8 { param($Style, $Target) $reset = { $fmt = { } }; & $fmt $Style $Target }'
             )) { Find-UnprovenCallables $code | Should -Not -BeNullOrEmpty -Because $code }
+        foreach ($code in @(
+                'function F { param($Item) Set-Variable -Name fmt -Value $Item.F }',
+                'function F { param($Item) sv fmt $Item.F }',
+                'function F { param($Item) New-Variable fmt $Item.F }',
+                'function F { Get-Thing | Tee-Object -Variable h }'
+            )) { Find-Unconfined $code | Should -Not -BeNullOrEmpty -Because $code }
         foreach ($code in @(
                 'function F { param([scriptblock] $OnTick) & $OnTick }',
                 'function F { param([System.Management.Automation.CommandInfo] $Command) & $Command @p }',
                 'function F { $say = { param($t) $t }; & $say hi }',
                 'function F { param([scriptblock] $OnResult) $streamTo = $OnResult; & $streamTo 1 }',
                 'function F { [scriptblock]$seam = $State.Seams.Fetch; & $seam 1 }',
-                'function F { $add = { 1 }; $add = { 2 }; & $add }'
+                'function F { $add = { 1 }; $add = { 2 }; & $add }',
+                'function F { param([scriptblock] $Fetch) if (-not $Fetch) { $Fetch = { 1 } }; & $Fetch }',
+                'function F { param([scriptblock] $Fetch) $Fetch = $State.Other; & $Fetch }',
+                'function F { $say = { param($t) $t }; $each = { param($x) & $say $x }; & $each 1 }'
             )) { Find-UnprovenCallables $code | Should -BeNullOrEmpty -Because $code }
     }
     It 'names the text routes it bans' {
